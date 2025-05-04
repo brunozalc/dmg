@@ -1,0 +1,6 @@
+[submodule "roms/blargg"]
+	path = roms/blargg
+	url = https://github.com/retrio/gb-test-roms
+[submodule "roms/mooneye"]
+	path = roms/mooneye
+	url = https://github.com/Gekkio/mooneye-test-suite
