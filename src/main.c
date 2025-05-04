@@ -1,8 +1,8 @@
 #include <raylib.h>
 #include <stdio.h>
 
+#include "bus.h"
 #include "cpu.h"
-#include "mem.h"
 #include "rom.h"
 
 int main(int argc, char* argv[]) {
