@@ -3,7 +3,7 @@ CC ?= clang
 CSTD = -std=c18
 WARNINGS = -Wall -Wextra -Wshadow -pedantic
 OPT = -O3
-CFLAGS = $(CSTD) $(WARNINGS) $(OPT) $(shell pkg-config --cflags raylib) -Isrc -Iinclude
+CFLAGS = $(CSTD) $(WARNINGS) $(OPT) $(shell pkg-config --cflags raylib) -Iinclude -Isrc
 LDFLAGS = $(shell pkg-config --libs raylib) \
 			-framework CoreVideo -framework IOKit -framework Cocoa \
 			-framework OpenGL -framework GLUT 	# for macOS
@@ -16,7 +16,7 @@ BIN := gb
 
 # ---------- build rules ----------
 .PHONY: all clean run
-.DEFAULT_GOAL := run
+# .DEFAULT_GOAL := run
 
 all: $(BIN)
 
