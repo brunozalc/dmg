@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mem.h"
+#include "bus.h"
 #include "opcodes.h"
 
 /* function to entirely reset the CPU
@@ -15,15 +15,15 @@
 - puts pc and sp at their designated place
 */
 void cpu_reset(CPU *cpu) {
-    *cpu = (CPU){0};
+    *cpu    = (CPU){0};
     cpu->pc = 0x0100;
     cpu->sp = 0xFFFE;
 }
 
-/* function to halt and log an error
+/* function to log an error
 - prints information about the CPU state when the error occurred
 */
-void cpu_error(CPU *cpu, const char *format, ...) {
+void log_cpu_error(CPU *cpu, const char *format, ...) {
     va_list args;
     va_start(args, format);
 
@@ -54,8 +54,11 @@ void cpu_error(CPU *cpu, const char *format, ...) {
 */
 static uint8_t fetch(CPU *cpu) {
     uint8_t opcode = mem_read(cpu->pc++);
-    cpu->last_opcode = opcode;
-    return opcode;
+
+    if (opcode != cpu->last_opcode)
+        fprintf(stderr, "pc: %04X opcode: %02X\n", cpu->pc - 1, opcode);
+
+    return cpu->last_opcode = opcode;
 }
 
 /* fetch-decode-execute cycle
@@ -63,10 +66,10 @@ static uint8_t fetch(CPU *cpu) {
 - this is done by looking up the instruction in the opcode table
 - so this function pretty much only asserts that the instruction is valid
 */
-static void decode(CPU *cpu, uint8_t opcode) {
+static void decode_and_verify(CPU *cpu, uint8_t opcode) {
     if (optable[opcode] == NULL) {
-        cpu_error(cpu, "inexistent function pointer for opcode: 0x%02X",
-                  opcode);
+        log_cpu_error(cpu, "inexistent function pointer for opcode: 0x%02X",
+                      opcode);
     }
 }
 
@@ -78,6 +81,6 @@ static void execute(CPU *cpu, uint8_t opcode) { optable[opcode](cpu); }
 
 void cpu_step(CPU *cpu) {
     uint8_t opcode = fetch(cpu);
-    decode(cpu, opcode);
+    decode_and_verify(cpu, opcode);
     execute(cpu, opcode);
 }
