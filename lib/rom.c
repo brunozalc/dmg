@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "mem.h"
+#include "bus.h"
 
 static const char *cartridge_type_str(uint8_t t) {
     switch (t) {
@@ -54,8 +54,8 @@ static const char *ram_size_str(uint8_t c) {
 - 0x0149: cart ram size
  */
 void log_header(void) {
-    const uint8_t *header    = ram + 0x0100;  // header starts at 0x0100
-    char           title[17] = {0};
+    const uint8_t *header = ram + 0x0100;  // header starts at 0x0100
+    char title[17]        = {0};
 
     // header + 0x34 -> title
     memcpy(title, header + 0x34, 16);
@@ -73,7 +73,7 @@ void log_header(void) {
     printf("region      : %s\n", header[0x4A] ? "West" : "Japan");
     printf("CGB flag    : 0x%02X\n", header[0x43]);
     printf("SGB flag    : 0x%02X\n", header[0x46]);
-    printf("================\n");
+    printf("================\n\n");
 }
 
 void load_rom(const char *filepath) {
