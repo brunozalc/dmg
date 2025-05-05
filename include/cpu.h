@@ -4,23 +4,6 @@
 #include <stdint.h>
 
 typedef struct {
-    // zero flag
-    uint8_t z : 1;
-
-    // subtract flag
-    uint8_t n : 1;
-
-    // half carry flag
-    uint8_t h : 1;
-
-    // carry flag
-    uint8_t c : 1;
-
-    // unused bits
-    uint8_t unused : 4;
-} Flags;
-
-typedef struct {
     // a: accumulator; f: flags
     union {
         struct {
@@ -56,8 +39,9 @@ typedef struct {
     // cpu cycle counter
     uint64_t cycles;
 
-    // flags
-    Flags flags;
+    // interrupt enable register
+    uint8_t ime;      /* 0 or 1, current state (READ ONLY) */
+    uint8_t ime_next; /* 0 or 1, value to copy after one instruction */
 
     // last opcode executed (debugging)
     uint8_t last_opcode;
