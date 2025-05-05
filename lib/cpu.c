@@ -53,7 +53,10 @@ void log_cpu_error(CPU *cpu, const char *format, ...) {
 - fetch the next instruction from the memory bus (address indicated by pc)
 */
 static uint8_t fetch(CPU *cpu) {
-    uint8_t opcode = mem_read(cpu->pc++);
+    uint8_t opcode = mem_read(cpu->pc);
+
+    cpu->pc++;  // increment the program counter to point to the next
+                // instruction (length=1) OR the next operand (length>1)
 
     if (opcode != cpu->last_opcode)
         fprintf(stderr, "pc: %04X opcode: %02X\n", cpu->pc - 1, opcode);
@@ -83,4 +86,11 @@ void cpu_step(CPU *cpu) {
     uint8_t opcode = fetch(cpu);
     decode_and_verify(cpu, opcode);
     execute(cpu, opcode);
+
+    /* pass the signal to ime after one instruction has passed.
+    see https://gbdev.io/pandocs/Interrupts.html */
+    if (cpu->ime_next) {
+        cpu->ime      = 1;
+        cpu->ime_next = 0;
+    }
 }
