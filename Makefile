@@ -35,3 +35,15 @@ run: $(BIN)
 
 clean:
 	rm -rf build $(BIN)
+
+# --- generate interleaved .s from every .c ---
+ASM := $(patsubst %.c,build/%.s,$(SRC))
+
+.PHONY: asm
+asm: $(ASM)
+
+# pattern rule: src/foo.c → build/src/foo.s
+build/%.s: %.c
+	@mkdir -p $(dir $@)
+	@echo "ASM $<"
+	$(CC) $(CFLAGS) -S -g -fverbose-asm -o $@ $<
