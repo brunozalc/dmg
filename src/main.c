@@ -11,14 +11,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    const char* rom_file      = argv[1];
+    const char* rom_file    = argv[1];
 
-    const int   DISPLAY_SCALE = 4;
-    const int   HEIGHT_PX     = 144;
-    const int   WIDTH_PX      = 160;
+    const int DISPLAY_SCALE = 4;
+    const int HEIGHT_PX     = 144;
+    const int WIDTH_PX      = 160;
 
     // initialize the CPU and reset all states
-    CPU         cpu;
+    CPU cpu;
     cpu_reset(&cpu);
 
     // initialize the memory bus and reset all states
