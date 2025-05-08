@@ -1,7 +1,11 @@
 #ifndef CPU_HEADER
 #define CPU_HEADER
 
+#include <stdarg.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef struct {
     // a: accumulator; f: flags
@@ -50,5 +54,10 @@ typedef struct {
 
 void cpu_reset(CPU *cpu);
 void cpu_step(CPU *cpu);
+
+/* function to log an error
+- prints information about the CPU state when the error occurred
+*/
+void log_cpu_error(CPU *cpu, const char *format, ...);
 
 #endif
