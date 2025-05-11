@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern FILE *cpu_log;
+
 typedef struct {
     // a: accumulator; f: flags
     union {
@@ -44,8 +46,31 @@ typedef struct {
     uint64_t cycles;
 
     // interrupt enable register
-    uint8_t ime;      /* 0 or 1, current state (READ ONLY) */
-    uint8_t ime_next; /* 0 or 1, value to copy after one instruction */
+    int ime;     /* 0 or 1, current state (READ ONLY) */
+    int set_ime; /* 0 or 1, value to copy after one instruction */
+
+    /* 0xFF0F, interrupt flag register
+    - bit 0: v-blank
+    - bit 1: LCD
+    - bit 2: timer
+    - bit 3: serial
+    - bit 4: joypad
+    any bits set to 1 are interrupt requests
+    */
+    uint8_t ifr;
+
+    /* 0xFFFF, interrupt enable register
+    - bit 0: v-blank
+    - bit 1: LCD
+    - bit 2: timer
+    - bit 3: serial
+    - bit 4: joypad
+    any bits set to 1 are enabled interrupts
+    */
+    uint8_t ier;
+
+    /* HALT flag */
+    int halt; /* 0 or 1, current state */
 
     // last opcode executed (debugging)
     uint8_t last_opcode;

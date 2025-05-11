@@ -11,6 +11,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    cpu_log = fopen("cpu.log", "w");
+    if (!cpu_log) {
+        perror("cpu.log");
+        exit(1);
+    }
+
     const char* rom_file    = argv[1];
 
     const int DISPLAY_SCALE = 4;
@@ -28,8 +34,7 @@ int main(int argc, char* argv[]) {
 
     // raylib init
     SetTraceLogLevel(5);
-    InitWindow(WIDTH_PX * DISPLAY_SCALE, HEIGHT_PX * DISPLAY_SCALE,
-               "sm83 emulator");
+    InitWindow(WIDTH_PX * DISPLAY_SCALE, HEIGHT_PX * DISPLAY_SCALE, "dmg emulator");
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
@@ -44,5 +49,6 @@ int main(int argc, char* argv[]) {
     }
 
     CloseWindow();
+    fclose(cpu_log);
     return 0;
 }

@@ -58,3 +58,6 @@ dkms.conf
 # Build files and executables
 build/
 gb
+
+# Log files
+*.log
