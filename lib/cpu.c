@@ -28,8 +28,7 @@ void log_cpu_error(CPU *cpu, const char *format, ...) {
     va_start(args, format);
 
     fprintf(stderr, "\n=== error ===\n");
-    fprintf(stderr, "pc: 0x%04X\n",
-            cpu->pc); 
+    fprintf(stderr, "pc: 0x%04X\n", cpu->pc);
     fprintf(stderr, "opcode: 0x%02X\n", cpu->last_opcode);
     fprintf(stderr, "error: ");
     vfprintf(stderr, format, args);
@@ -57,8 +56,8 @@ static uint8_t fetch(CPU *cpu) {
                                           instruction (length=1) OR the next operand (length>1) */
 
     /* simple execution log */
-    if (opcode != cpu->last_opcode)
-        fprintf(stderr, "pc: %04X opcode: %02X\n", cpu->pc - 1, opcode);
+    // if (opcode != cpu->last_opcode)
+    //     fprintf(stderr, "pc: %04X opcode: %02X\n", cpu->pc - 1, opcode);
 
     return cpu->last_opcode = opcode;
 }
