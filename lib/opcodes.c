@@ -232,13 +232,106 @@ DEF_CALL_NC_U16(0xd4) /* CALL NC, (u16) -> call if c = 0 */
 DEF_CALL_U16(0xcd)    /* CALL (u16) */
 DEF_RET(0xc9)         /* RET */
 
+/* ---- x8/rsb (cb-prefixed) ---- */
+DEF_RLC_R8(0x00, b) /* RLC B */
+DEF_RLC_R8(0x01, c) /* RLC C */
+DEF_RLC_R8(0x02, d) /* RLC D */
+DEF_RLC_R8(0x03, e) /* RLC E */
+DEF_RLC_R8(0x04, h) /* RLC H */
+DEF_RLC_R8(0x05, l) /* RLC L */
+DEF_RLC_HLPTR(0x06) /* RLC (HL) */
+DEF_RLC_R8(0x07, a) /* RLC A */
+
+DEF_RRC_R8(0x08, b) /* RRC B */
+DEF_RRC_R8(0x09, c) /* RRC C */
+DEF_RRC_R8(0x0a, d) /* RRC D */
+DEF_RRC_R8(0x0b, e) /* RRC E */
+DEF_RRC_R8(0x0c, h) /* RRC H */
+DEF_RRC_R8(0x0d, l) /* RRC L */
+DEF_RRC_HLPTR(0x0e) /* RRC (HL) */
+DEF_RRC_R8(0x0f, a) /* RRC A */
+
+DEF_RL_R8(0x10, b) /* RL B */
+DEF_RL_R8(0x11, c) /* RL C */
+DEF_RL_R8(0x12, d) /* RL D */
+DEF_RL_R8(0x13, e) /* RL E */
+DEF_RL_R8(0x14, h) /* RL H */
+DEF_RL_R8(0x15, l) /* RL L */
+DEF_RL_HLPTR(0x16) /* RL (HL) */
+DEF_RL_R8(0x17, a) /* RL A */
+
+DEF_RR_R8(0x18, b) /* RR B */
+DEF_RR_R8(0x19, c) /* RR C */
+DEF_RR_R8(0x1a, d) /* RR D */
+DEF_RR_R8(0x1b, e) /* RR E */
+DEF_RR_R8(0x1c, h) /* RR H */
+DEF_RR_R8(0x1d, l) /* RR L */
+DEF_RR_HLPTR(0x1e) /* RR (HL) */
+DEF_RR_R8(0x1f, a) /* RR A */
+
+DEF_SLA_R8(0x20, b) /* SLA B */
+DEF_SLA_R8(0x21, c) /* SLA C */
+DEF_SLA_R8(0x22, d) /* SLA D */
+DEF_SLA_R8(0x23, e) /* SLA E */
+DEF_SLA_R8(0x24, h) /* SLA H */
+DEF_SLA_R8(0x25, l) /* SLA L */
+DEF_SLA_HLPTR(0x26) /* SLA (HL) */
+DEF_SLA_R8(0x27, a) /* SLA A */
+
+DEF_SRA_R8(0x28, b) /* SRA B */
+DEF_SRA_R8(0x29, c) /* SRA C */
+DEF_SRA_R8(0x2a, d) /* SRA D */
+DEF_SRA_R8(0x2b, e) /* SRA E */
+DEF_SRA_R8(0x2c, h) /* SRA H */
+DEF_SRA_R8(0x2d, l) /* SRA L */
+DEF_SRA_HLPTR(0x2e) /* SRA (HL) */
+DEF_SRA_R8(0x2f, a) /* SRA A */
+
+DEF_SWAP_R8(0x30, b) /* SWAP B */
+DEF_SWAP_R8(0x31, c) /* SWAP C */
+DEF_SWAP_R8(0x32, d) /* SWAP D */
+DEF_SWAP_R8(0x33, e) /* SWAP E */
+DEF_SWAP_R8(0x34, h) /* SWAP H */
+DEF_SWAP_R8(0x35, l) /* SWAP L */
+DEF_SWAP_HLPTR(0x36) /* SWAP (HL) */
+DEF_SWAP_R8(0x37, a) /* SWAP A */
+
+DEF_SRL_R8(0x38, b) /* SRL B */
+DEF_SRL_R8(0x39, c) /* SRL C */
+DEF_SRL_R8(0x3a, d) /* SRL D */
+DEF_SRL_R8(0x3b, e) /* SRL E */
+DEF_SRL_R8(0x3c, h) /* SRL H */
+DEF_SRL_R8(0x3d, l) /* SRL L */
+DEF_SRL_HLPTR(0x3e) /* SRL (HL) */
+DEF_SRL_R8(0x3f, a) /* SRL A */
+
+DEF_BIT_U3_R8(0x40, 0, b) /* BIT 0, B */
+DEF_BIT_U3_R8(0x41, 0, c) /* BIT 0, C */
+DEF_BIT_U3_R8(0x42, 0, d) /* BIT 0, D */
+DEF_BIT_U3_R8(0x43, 0, e) /* BIT 0, E */
+DEF_BIT_U3_R8(0x44, 0, h) /* BIT 0, H */
+DEF_BIT_U3_R8(0x45, 0, l) /* BIT 0, L */
+DEF_BIT_U3_HLPTR(0x46, 0) /* BIT 0, (HL) */
+DEF_BIT_U3_R8(0x47, 0, a) /* BIT 0, A */
+
+DEF_BIT_U3_R8(0x48, 1, b) /* BIT 1, B */
+DEF_BIT_U3_R8(0x49, 1, c) /* BIT 1, C */
+DEF_BIT_U3_R8(0x4a, 1, d) /* BIT 1, D */
+DEF_BIT_U3_R8(0x4b, 1, e) /* BIT 1, E */
+DEF_BIT_U3_R8(0x4c, 1, h) /* BIT 1, H */
+DEF_BIT_U3_R8(0x4d, 1, l) /* BIT 1, L */
+DEF_BIT_U3_HLPTR(0x4e, 1) /* BIT 1, (HL) */
+DEF_BIT_U3_R8(0x4f, 1, a) /* BIT 1, A */
+DEF_BIT_U3_R8(0x50, 2, b) /* BIT 2, B */
+DEF_BIT_U3_R8(0x51, 2, c) /* BIT 2, C */
+DEF_BIT_U3_R8(0x52, 2, d) /* BIT 2, D */
+
 /* ----  control/misc ---- */
 DEF_IMPLIED(0x00, nop, /* nothing */, 4)
 DEF_IMPLIED(0xf3, di, cpu->ime = cpu->ime_next = 0;, 4)
 
-void decode_and_execute(CPU *cpu, uint8_t op) {
+void x8_alu_handler(CPU *cpu, uint8_t op) {
     switch (op) {
-        /* ---- x8/alu ---- */
         case 0x04: op_0x04_i_b(cpu); break;
         case 0x05: op_0x05_d_b(cpu); break;
         case 0x0C: op_0x0c_i_c(cpu); break;
@@ -327,8 +420,11 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
         case 0xEE: op_0xee_xor_a_u8(cpu); break;
         case 0xF6: op_0xf6_or_a_u8(cpu); break;
         case 0xFE: op_0xfe_cp_a_u8(cpu); break;
+    }
+}
 
-        /* ---- x16/alu ---- */
+void x16_alu_handler(CPU *cpu, uint8_t op) {
+    switch (op) {
         case 0x03: op_0x03_i_bc(cpu); break;
         case 0x13: op_0x13_i_de(cpu); break;
         case 0x23: op_0x23_i_hl(cpu); break;
@@ -337,8 +433,11 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
         case 0x1B: op_0x1b_d_de(cpu); break;
         case 0x2B: op_0x2b_d_hl(cpu); break;
         case 0x3B: op_0x3b_d_sp(cpu); break;
+    }
+}
 
-        /* ---- x8/lsm ---- */
+void x8_lsm_handler(CPU *cpu, uint8_t op) {
+    switch (op) {
         case 0x02: op_0x02_ld_bcptr_a(cpu); break;
         case 0x06: op_0x06_ld_b_u8(cpu); break;
         case 0x0A: op_0x0a_ld_a_bcptr(cpu); break;
@@ -422,8 +521,11 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
         case 0xEA: op_0xea_ld_u16ptr_a(cpu); break;
         case 0xF0: op_0xf0_ld_a_ff00u8ptr(cpu); break;
         case 0xFA: op_0xfa_ld_a_u16ptr(cpu); break;
+    }
+}
 
-        /* ---- x16/lsm ---- */
+void x16_lsm_handler(CPU *cpu, uint8_t op) {
+    switch (op) {
         case 0x01: op_0x01_ld_bc_u16(cpu); break;
         case 0x11: op_0x11_ld_de_u16(cpu); break;
         case 0x21: op_0x21_ld_hl_u16(cpu); break;
@@ -436,8 +538,11 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
         case 0xD5: op_0xd5_push_de(cpu); break;
         case 0xE5: op_0xe5_push_hl(cpu); break;
         case 0xF5: op_0xf5_push_af(cpu); break;
+    }
+}
 
-        /* ---- ctrl/br ---- */
+void ctrl_br_handler(CPU *cpu, uint8_t op) {
+    switch (op) {
         case 0x18: op_0x18_jr_u8(cpu); break;
         case 0x20: op_0x20_jr_nz_u8(cpu); break;
         case 0x28: op_0x28_jr_z_u8(cpu); break;
@@ -448,22 +553,112 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
         case 0xCD: op_0xcd_call_u16(cpu); break;
         case 0xD4: op_0xd4_call_nc_u16(cpu); break;
         case 0xC9: op_0xc9_ret(cpu); break;
+    }
+}
 
-        /* ---- ctrl/misc ---- */
+void x8_rsb_handler(CPU *cpu, uint8_t op) {
+    switch (op) {
+        case 0x00: op_0x00_rlc_b(cpu); break;
+        case 0x01: op_0x01_rlc_c(cpu); break;
+        case 0x02: op_0x02_rlc_d(cpu); break;
+        case 0x03: op_0x03_rlc_e(cpu); break;
+        case 0x04: op_0x04_rlc_h(cpu); break;
+        case 0x05: op_0x05_rlc_l(cpu); break;
+        case 0x06: op_0x06_rlc_hlptr(cpu); break;
+        case 0x07: op_0x07_rlc_a(cpu); break;
+        case 0x08: op_0x08_rrc_b(cpu); break;
+        case 0x09: op_0x09_rrc_c(cpu); break;
+        case 0x0A: op_0x0a_rrc_d(cpu); break;
+        case 0x0B: op_0x0b_rrc_e(cpu); break;
+        case 0x0C: op_0x0c_rrc_h(cpu); break;
+        case 0x0D: op_0x0d_rrc_l(cpu); break;
+        case 0x0E: op_0x0e_rrc_hlptr(cpu); break;
+        case 0x0F: op_0x0f_rrc_a(cpu); break;
+        case 0x10: op_0x10_rl_b(cpu); break;
+        case 0x11: op_0x11_rl_c(cpu); break;
+        case 0x12: op_0x12_rl_d(cpu); break;
+        case 0x13: op_0x13_rl_e(cpu); break;
+        case 0x14: op_0x14_rl_h(cpu); break;
+        case 0x15: op_0x15_rl_l(cpu); break;
+        case 0x16: op_0x16_rl_hlptr(cpu); break;
+        case 0x17: op_0x17_rl_a(cpu); break;
+        case 0x18: op_0x18_rr_b(cpu); break;
+        case 0x19: op_0x19_rr_c(cpu); break;
+        case 0x1A: op_0x1a_rr_d(cpu); break;
+        case 0x1B: op_0x1b_rr_e(cpu); break;
+        case 0x1C: op_0x1c_rr_h(cpu); break;
+        case 0x1D: op_0x1d_rr_l(cpu); break;
+        case 0x1E: op_0x1e_rr_hlptr(cpu); break;
+        case 0x1F: op_0x1f_rr_a(cpu); break;
+        case 0x20: op_0x20_sla_b(cpu); break;
+        case 0x21: op_0x21_sla_c(cpu); break;
+        case 0x22: op_0x22_sla_d(cpu); break;
+        case 0x23: op_0x23_sla_e(cpu); break;
+        case 0x24: op_0x24_sla_h(cpu); break;
+        case 0x25: op_0x25_sla_l(cpu); break;
+        case 0x26: op_0x26_sla_hlptr(cpu); break;
+        case 0x27: op_0x27_sla_a(cpu); break;
+        case 0x28: op_0x28_sra_b(cpu); break;
+        case 0x29: op_0x29_sra_c(cpu); break;
+        case 0x2A: op_0x2a_sra_d(cpu); break;
+        case 0x2B: op_0x2b_sra_e(cpu); break;
+        case 0x2C: op_0x2c_sra_h(cpu); break;
+        case 0x2D: op_0x2d_sra_l(cpu); break;
+        case 0x2E: op_0x2e_sra_hlptr(cpu); break;
+        case 0x2F: op_0x2f_sra_a(cpu); break;
+        case 0x30: op_0x30_swap_b(cpu); break;
+        case 0x31: op_0x31_swap_c(cpu); break;
+        case 0x32: op_0x32_swap_d(cpu); break;
+        case 0x33: op_0x33_swap_e(cpu); break;
+        case 0x34: op_0x34_swap_h(cpu); break;
+        case 0x35: op_0x35_swap_l(cpu); break;
+        case 0x36: op_0x36_swap_hlptr(cpu); break;
+        case 0x37: op_0x37_swap_a(cpu); break;
+        case 0x38: op_0x38_srl_b(cpu); break;
+        case 0x39: op_0x39_srl_c(cpu); break;
+        case 0x3A: op_0x3a_srl_d(cpu); break;
+        case 0x3B: op_0x3b_srl_e(cpu); break;
+        case 0x3C: op_0x3c_srl_h(cpu); break;
+        case 0x3D: op_0x3d_srl_l(cpu); break;
+        case 0x3E: op_0x3e_srl_hlptr(cpu); break;
+        case 0x3F: op_0x3f_srl_a(cpu); break;
+        default:   log_cpu_error(cpu, "unimplemented CB opcode: 0x%02X", op);
+    }
+}
+
+void ctrl_misc_handler(CPU *cpu, uint8_t op) {
+    switch (op) {
         case 0x00: op_0x00_nop(cpu); break;
         case 0xF3: op_0xf3_di(cpu); break;
+    }
+}
+
+void decode_and_execute(CPU *cpu, uint8_t op) {
+    switch (op) {
+        /* ---- x8/alu ---- */
+        x8_alu_handler(cpu, op);
+
+        /* ---- x16/alu ---- */
+        x16_alu_handler(cpu, op);
+
+        /* ---- x8/lsm ---- */
+        x8_lsm_handler(cpu, op);
+
+        /* ---- x16/lsm ---- */
+        x16_lsm_handler(cpu, op);
+
+        /* ---- ctrl/br ---- */
+        ctrl_br_handler(cpu, op);
+
+        /* ---- ctrl/misc ---- */
+        ctrl_misc_handler(cpu, op);
 
         /* ---- cb-prefixed ---- */
         case 0xCB: {
             uint8_t cb_op =
                 mem_read(cpu->pc++); /* fetch the CB‐opcode (the second byte) and advance PC */
 
-            if (cb_op != cpu->last_opcode)
-                fprintf(stderr, "pc: %04X opcode: CB %02X\n", cpu->pc - 1, cb_op);
-
-            switch (cb_op) {
-                default: log_cpu_error(cpu, "unimplemented CB opcode: 0x%02X", cb_op);
-            }
+            x8_rsb_handler(cpu, cb_op);
             break;
         }
 

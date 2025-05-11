@@ -59,7 +59,7 @@ inline void set_flag(CPU *cpu, uint8_t flag, int enable) {
 
 inline void call_u16(CPU *cpu) {
     /* 1. fetch the target address (little‑endian) */
-    uint16_t target = mem_read16(cpu->pc);
+    uint16_t target   = mem_read16(cpu->pc);
 
     /* 2. compute address to return to and skip operand */
     uint16_t ret_addr = cpu->pc + 2;
@@ -81,239 +81,201 @@ inline void call_u16(CPU *cpu) {
 #define CALL_U16(cpu) call_u16(cpu)
 
 /*  x8/alu  ---------------------------------------------------------------- */
-#define DEF_INC_R8(OP, REG)                                                   \
-    static void op_##OP##_i_##REG(CPU *cpu) {                                 \
-        /* 1. r8 <- r8 + 1 */                                                 \
-        uint8_t old = (cpu)->REG;                                             \
-        (cpu)->REG += 1;                                                      \
-        /* 2. set flags */                                                    \
-        set_flag(cpu, FLAG_Z, (cpu)->REG == 0);                               \
-        set_flag(cpu, FLAG_N, 0);                                             \
-        set_flag(cpu, FLAG_H,                                                 \
-                 (old & 0x0F) == 0x0F); /* was the low nibble of the original \
-                                           value 1111? carry will occur */    \
-        ADV_CYCLES(cpu, 4);                                                   \
+#define DEF_INC_R8(OP, REG)                                                                \
+    static void op_##OP##_i_##REG(CPU *cpu) {                                              \
+        /* 1. r8 <- r8 + 1 */                                                              \
+        uint8_t old = (cpu)->REG;                                                          \
+        (cpu)->REG += 1;                                                                   \
+        /* 2. set flags */                                                                 \
+        set_flag(cpu, FLAG_Z, (cpu)->REG == 0);                                            \
+        set_flag(cpu, FLAG_N, 0);                                                          \
+        set_flag(cpu, FLAG_H, (old & 0x0F) == 0x0F); /* was the low nibble of the original \
+                                                        value 1111? carry will occur */    \
+        ADV_CYCLES(cpu, 4);                                                                \
     }
 
-#define DEF_DEC_R8(OP, REG)                                                   \
-    static void op_##OP##_d_##REG(CPU *cpu) {                                 \
-        /* 1. r8 <- r8 - 1 */                                                 \
-        uint8_t old = (cpu)->REG;                                             \
-        (cpu)->REG -= 1;                                                      \
-        /* 2. set flags */                                                    \
-        set_flag(cpu, FLAG_Z, (cpu)->REG == 0);                               \
-        set_flag(cpu, FLAG_N, 1);                                             \
-        set_flag(cpu, FLAG_H,                                                 \
-                 (old & 0x0F) == 0x00); /* was the low nibble of the original \
-                              value 0000? borrow will occur */                \
-        ADV_CYCLES(cpu, 4);                                                   \
+#define DEF_DEC_R8(OP, REG)                                                                \
+    static void op_##OP##_d_##REG(CPU *cpu) {                                              \
+        /* 1. r8 <- r8 - 1 */                                                              \
+        uint8_t old = (cpu)->REG;                                                          \
+        (cpu)->REG -= 1;                                                                   \
+        /* 2. set flags */                                                                 \
+        set_flag(cpu, FLAG_Z, (cpu)->REG == 0);                                            \
+        set_flag(cpu, FLAG_N, 1);                                                          \
+        set_flag(cpu, FLAG_H, (old & 0x0F) == 0x00); /* was the low nibble of the original \
+                                           value 0000? borrow will occur */                \
+        ADV_CYCLES(cpu, 4);                                                                \
     }
 
-#define DEF_ADD_A_R8(OP, R8)                                                  \
-    static void op_##OP##_add_a_##R8(CPU *cpu) {                              \
-        /* 1. r8 <- r8 + r8 */                                                \
-        uint16_t result = (cpu)->a + (cpu)->R8;                               \
-        /* 2. set flags */                                                    \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                          \
-        set_flag(cpu, FLAG_N, 0);                                             \
-        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) + ((cpu)->R8 & 0x0F) > 0x0F); \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                 \
-        (cpu)->R8 =                                                           \
-            result &                                                          \
-            0x00FF; /* make sure we only store ONE byte, the lower one */     \
-        ADV_CYCLES(cpu, 4);                                                   \
+#define DEF_ADD_A_R8(OP, R8)                                                               \
+    static void op_##OP##_add_a_##R8(CPU *cpu) {                                           \
+        /* 1. r8 <- r8 + r8 */                                                             \
+        uint16_t result = (cpu)->a + (cpu)->R8;                                            \
+        /* 2. set flags */                                                                 \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                       \
+        set_flag(cpu, FLAG_N, 0);                                                          \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) + ((cpu)->R8 & 0x0F) > 0x0F);              \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                              \
+        (cpu)->R8 = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_CYCLES(cpu, 4);                                                                \
     }
 
-#define DEF_ADD_A_HLPTR(OP)                                                   \
-    static void op_##OP##_add_a_hlptr(CPU *cpu) {                             \
-        /* 1. a <- a + (hl) */                                                \
-        uint8_t byte_read = mem_read((cpu)->hl);                              \
-        uint16_t result = (cpu)->a + byte_read;                               \
-        /* 2. set flags */                                                    \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                          \
-        set_flag(cpu, FLAG_N, 0);                                             \
-        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) + (byte_read & 0x0F) > 0x0F); \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                 \
-        (cpu)->a =                                                            \
-            result &                                                          \
-            0x00FF; /* make sure we only store ONE byte, the lower one */     \
-        ADV_CYCLES(cpu, 8);                                                   \
+#define DEF_ADD_A_HLPTR(OP)                                                               \
+    static void op_##OP##_add_a_hlptr(CPU *cpu) {                                         \
+        /* 1. a <- a + (hl) */                                                            \
+        uint8_t byte_read = mem_read((cpu)->hl);                                          \
+        uint16_t result   = (cpu)->a + byte_read;                                         \
+        /* 2. set flags */                                                                \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                      \
+        set_flag(cpu, FLAG_N, 0);                                                         \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) + (byte_read & 0x0F) > 0x0F);             \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                             \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_CYCLES(cpu, 8);                                                               \
     }
 
-#define DEF_ADD_A_U8(OP)                                                      \
-    static void op_##OP##_add_a_u8(CPU *cpu) {                                \
-        /* 1. a <- a + u8 */                                                  \
-        uint8_t byte_read = mem_read(cpu->pc);                                \
-        uint16_t result = (cpu)->a + byte_read;                               \
-        /* 2. set flags */                                                    \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                          \
-        set_flag(cpu, FLAG_N, 0);                                             \
-        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) + (byte_read & 0x0F) > 0x0F); \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                 \
-        (cpu)->a =                                                            \
-            result &                                                          \
-            0x00FF; /* make sure we only store ONE byte, the lower one */     \
-        ADV_PC(cpu, 1);                                                       \
-        ADV_CYCLES(cpu, 8);                                                   \
+#define DEF_ADD_A_U8(OP)                                                                  \
+    static void op_##OP##_add_a_u8(CPU *cpu) {                                            \
+        /* 1. a <- a + u8 */                                                              \
+        uint8_t byte_read = mem_read(cpu->pc);                                            \
+        uint16_t result   = (cpu)->a + byte_read;                                         \
+        /* 2. set flags */                                                                \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                      \
+        set_flag(cpu, FLAG_N, 0);                                                         \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) + (byte_read & 0x0F) > 0x0F);             \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                             \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_PC(cpu, 1);                                                                   \
+        ADV_CYCLES(cpu, 8);                                                               \
     }
 
-#define DEF_ADC_A_R8(OP, R8)                                                 \
-    static void op_##OP##_adc_a_##R8(CPU *cpu) {                             \
-        /* 1. a <- a + r8 + carry */                                         \
-        uint16_t result = (cpu)->a + (cpu)->R8 + get_flag(cpu, FLAG_C);      \
-        /* 2. set flags */                                                   \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                         \
-        set_flag(cpu, FLAG_N, 0);                                            \
-        set_flag(                                                            \
-            cpu, FLAG_H,                                                     \
-            ((cpu)->a & 0x0F) + ((cpu)->R8 & 0x0F) + get_flag(cpu, FLAG_C) > \
-                0x0F);                                                       \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                \
-        (cpu)->a =                                                           \
-            result &                                                         \
-            0x00FF; /* make sure we only store ONE byte, the lower one */    \
-        ADV_CYCLES(cpu, 4);                                                  \
+#define DEF_ADC_A_R8(OP, R8)                                                              \
+    static void op_##OP##_adc_a_##R8(CPU *cpu) {                                          \
+        /* 1. a <- a + r8 + carry */                                                      \
+        uint16_t result = (cpu)->a + (cpu)->R8 + get_flag(cpu, FLAG_C);                   \
+        /* 2. set flags */                                                                \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                      \
+        set_flag(cpu, FLAG_N, 0);                                                         \
+        set_flag(cpu, FLAG_H,                                                             \
+                 ((cpu)->a & 0x0F) + ((cpu)->R8 & 0x0F) + get_flag(cpu, FLAG_C) > 0x0F);  \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                             \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_CYCLES(cpu, 4);                                                               \
     }
 
-#define DEF_ADC_A_HLPTR(OP)                                                  \
-    static void op_##OP##_adc_a_hlptr(CPU *cpu) {                            \
-        /* 1. a <- a + (hl) + carry */                                       \
-        uint8_t byte_read = mem_read((cpu)->hl);                             \
-        uint16_t result = (cpu)->a + byte_read + get_flag(cpu, FLAG_C);      \
-        /* 2. set flags */                                                   \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                         \
-        set_flag(cpu, FLAG_N, 0);                                            \
-        set_flag(                                                            \
-            cpu, FLAG_H,                                                     \
-            ((cpu)->a & 0x0F) + (byte_read & 0x0F) + get_flag(cpu, FLAG_C) > \
-                0x0F);                                                       \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                \
-        (cpu)->a =                                                           \
-            result &                                                         \
-            0x00FF; /* make sure we only store ONE byte, the lower one */    \
-        ADV_CYCLES(cpu, 8);                                                  \
+#define DEF_ADC_A_HLPTR(OP)                                                               \
+    static void op_##OP##_adc_a_hlptr(CPU *cpu) {                                         \
+        /* 1. a <- a + (hl) + carry */                                                    \
+        uint8_t byte_read = mem_read((cpu)->hl);                                          \
+        uint16_t result   = (cpu)->a + byte_read + get_flag(cpu, FLAG_C);                 \
+        /* 2. set flags */                                                                \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                      \
+        set_flag(cpu, FLAG_N, 0);                                                         \
+        set_flag(cpu, FLAG_H,                                                             \
+                 ((cpu)->a & 0x0F) + (byte_read & 0x0F) + get_flag(cpu, FLAG_C) > 0x0F);  \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                             \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_CYCLES(cpu, 8);                                                               \
     }
 
-#define DEF_ADC_A_U8(OP)                                                     \
-    static void op_##OP##_adc_a_u8(CPU *cpu) {                               \
-        /* 1. a <- a + u8 + carry */                                         \
-        uint8_t byte_read = mem_read(cpu->pc);                               \
-        uint16_t result = (cpu)->a + byte_read + get_flag(cpu, FLAG_C);      \
-        /* 2. set flags */                                                   \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                         \
-        set_flag(cpu, FLAG_N, 0);                                            \
-        set_flag(                                                            \
-            cpu, FLAG_H,                                                     \
-            ((cpu)->a & 0x0F) + (byte_read & 0x0F) + get_flag(cpu, FLAG_C) > \
-                0x0F);                                                       \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                \
-        (cpu)->a =                                                           \
-            result &                                                         \
-            0x00FF; /* make sure we only store ONE byte, the lower one */    \
-        ADV_PC(cpu, 1);                                                      \
-        ADV_CYCLES(cpu, 8);                                                  \
+#define DEF_ADC_A_U8(OP)                                                                  \
+    static void op_##OP##_adc_a_u8(CPU *cpu) {                                            \
+        /* 1. a <- a + u8 + carry */                                                      \
+        uint8_t byte_read = mem_read(cpu->pc);                                            \
+        uint16_t result   = (cpu)->a + byte_read + get_flag(cpu, FLAG_C);                 \
+        /* 2. set flags */                                                                \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                      \
+        set_flag(cpu, FLAG_N, 0);                                                         \
+        set_flag(cpu, FLAG_H,                                                             \
+                 ((cpu)->a & 0x0F) + (byte_read & 0x0F) + get_flag(cpu, FLAG_C) > 0x0F);  \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                             \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_PC(cpu, 1);                                                                   \
+        ADV_CYCLES(cpu, 8);                                                               \
     }
 
-#define DEF_SUB_A_R8(OP, R8)                                              \
-    static void op_##OP##_sub_a_##R8(CPU *cpu) {                          \
-        /* 1. a <- a - r8 */                                              \
-        uint16_t result = (cpu)->a - (cpu)->R8;                           \
-        /* 2. set flags */                                                \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                      \
-        set_flag(cpu, FLAG_N, 1);                                         \
-        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < ((cpu)->R8 & 0x0F));    \
-        set_flag(cpu, FLAG_C, result > 0xFF);                             \
-        (cpu)->a =                                                        \
-            result &                                                      \
-            0x00FF; /* make sure we only store ONE byte, the lower one */ \
-        ADV_CYCLES(cpu, 4);                                               \
+#define DEF_SUB_A_R8(OP, R8)                                                              \
+    static void op_##OP##_sub_a_##R8(CPU *cpu) {                                          \
+        /* 1. a <- a - r8 */                                                              \
+        uint16_t result = (cpu)->a - (cpu)->R8;                                           \
+        /* 2. set flags */                                                                \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                      \
+        set_flag(cpu, FLAG_N, 1);                                                         \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < ((cpu)->R8 & 0x0F));                    \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                             \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_CYCLES(cpu, 4);                                                               \
     }
 
-#define DEF_SUB_A_HLPTR(OP)                                               \
-    static void op_##OP##_sub_a_hlptr(CPU *cpu) {                         \
-        /* 1. a <- a - (hl) */                                            \
-        uint8_t byte_read = mem_read((cpu)->hl);                          \
-        uint16_t result = (cpu)->a - byte_read;                           \
-        /* 2. set flags */                                                \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                      \
-        set_flag(cpu, FLAG_N, 1);                                         \
-        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < (byte_read & 0x0F));    \
-        set_flag(cpu, FLAG_C, result > 0xFF);                             \
-        (cpu)->a =                                                        \
-            result &                                                      \
-            0x00FF; /* make sure we only store ONE byte, the lower one */ \
-        ADV_CYCLES(cpu, 8);                                               \
+#define DEF_SUB_A_HLPTR(OP)                                                               \
+    static void op_##OP##_sub_a_hlptr(CPU *cpu) {                                         \
+        /* 1. a <- a - (hl) */                                                            \
+        uint8_t byte_read = mem_read((cpu)->hl);                                          \
+        uint16_t result   = (cpu)->a - byte_read;                                         \
+        /* 2. set flags */                                                                \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                      \
+        set_flag(cpu, FLAG_N, 1);                                                         \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < (byte_read & 0x0F));                    \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                             \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_CYCLES(cpu, 8);                                                               \
     }
 
-#define DEF_SUB_A_U8(OP)                                                  \
-    static void op_##OP##_sub_a_u8(CPU *cpu) {                            \
-        /* 1. a <- a - u8 */                                              \
-        uint8_t byte_read = mem_read(cpu->pc);                            \
-        uint16_t result = (cpu)->a - byte_read;                           \
-        /* 2. set flags */                                                \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                      \
-        set_flag(cpu, FLAG_N, 1);                                         \
-        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < (byte_read & 0x0F));    \
-        set_flag(cpu, FLAG_C, result > 0xFF);                             \
-        (cpu)->a =                                                        \
-            result &                                                      \
-            0x00FF; /* make sure we only store ONE byte, the lower one */ \
-        ADV_PC(cpu, 1);                                                   \
-        ADV_CYCLES(cpu, 8);                                               \
+#define DEF_SUB_A_U8(OP)                                                                  \
+    static void op_##OP##_sub_a_u8(CPU *cpu) {                                            \
+        /* 1. a <- a - u8 */                                                              \
+        uint8_t byte_read = mem_read(cpu->pc);                                            \
+        uint16_t result   = (cpu)->a - byte_read;                                         \
+        /* 2. set flags */                                                                \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                      \
+        set_flag(cpu, FLAG_N, 1);                                                         \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < (byte_read & 0x0F));                    \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                             \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */ \
+        ADV_PC(cpu, 1);                                                                   \
+        ADV_CYCLES(cpu, 8);                                                               \
     }
 
-#define DEF_SBC_A_R8(OP, R8)                                                 \
-    static void op_##OP##_sbc_a_##R8(CPU *cpu) {                             \
-        /* 1. a <- a - r8 - carry */                                         \
-        uint16_t result = (cpu)->a - (cpu)->R8 - get_flag(cpu, FLAG_C);      \
-        /* 2. set flags */                                                   \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                         \
-        set_flag(cpu, FLAG_N, 1);                                            \
-        set_flag(                                                            \
-            cpu, FLAG_H,                                                     \
-            ((cpu)->a & 0x0F) < ((cpu)->R8 & 0x0F) + get_flag(cpu, FLAG_C)); \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                \
-        (cpu)->a =                                                           \
-            result &                                                         \
-            0x00FF; /* make sure we only store ONE byte, the lower one */    \
-        ADV_CYCLES(cpu, 4);                                                  \
+#define DEF_SBC_A_R8(OP, R8)                                                                   \
+    static void op_##OP##_sbc_a_##R8(CPU *cpu) {                                               \
+        /* 1. a <- a - r8 - carry */                                                           \
+        uint16_t result = (cpu)->a - (cpu)->R8 - get_flag(cpu, FLAG_C);                        \
+        /* 2. set flags */                                                                     \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                           \
+        set_flag(cpu, FLAG_N, 1);                                                              \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < ((cpu)->R8 & 0x0F) + get_flag(cpu, FLAG_C)); \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                                  \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */      \
+        ADV_CYCLES(cpu, 4);                                                                    \
     }
 
-#define DEF_SBC_A_HLPTR(OP)                                                  \
-    static void op_##OP##_sbc_a_hlptr(CPU *cpu) {                            \
-        /* 1. a <- a - (hl) - carry */                                       \
-        uint8_t byte_read = mem_read((cpu)->hl);                             \
-        uint16_t result = (cpu)->a - byte_read - get_flag(cpu, FLAG_C);      \
-        /* 2. set flags */                                                   \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                         \
-        set_flag(cpu, FLAG_N, 1);                                            \
-        set_flag(                                                            \
-            cpu, FLAG_H,                                                     \
-            ((cpu)->a & 0x0F) < (byte_read & 0x0F) + get_flag(cpu, FLAG_C)); \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                \
-        (cpu)->a =                                                           \
-            result &                                                         \
-            0x00FF; /* make sure we only store ONE byte, the lower one */    \
-        ADV_CYCLES(cpu, 8);                                                  \
+#define DEF_SBC_A_HLPTR(OP)                                                                    \
+    static void op_##OP##_sbc_a_hlptr(CPU *cpu) {                                              \
+        /* 1. a <- a - (hl) - carry */                                                         \
+        uint8_t byte_read = mem_read((cpu)->hl);                                               \
+        uint16_t result   = (cpu)->a - byte_read - get_flag(cpu, FLAG_C);                      \
+        /* 2. set flags */                                                                     \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                           \
+        set_flag(cpu, FLAG_N, 1);                                                              \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < (byte_read & 0x0F) + get_flag(cpu, FLAG_C)); \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                                  \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */      \
+        ADV_CYCLES(cpu, 8);                                                                    \
     }
 
-#define DEF_SBC_A_U8(OP)                                                     \
-    static void op_##OP##_sbc_a_u8(CPU *cpu) {                               \
-        /* 1. a <- a - u8 - carry */                                         \
-        uint8_t byte_read = mem_read(cpu->pc);                               \
-        uint16_t result = (cpu)->a - byte_read - get_flag(cpu, FLAG_C);      \
-        /* 2. set flags */                                                   \
-        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                         \
-        set_flag(cpu, FLAG_N, 1);                                            \
-        set_flag(                                                            \
-            cpu, FLAG_H,                                                     \
-            ((cpu)->a & 0x0F) < (byte_read & 0x0F) + get_flag(cpu, FLAG_C)); \
-        set_flag(cpu, FLAG_C, result > 0xFF);                                \
-        (cpu)->a =                                                           \
-            result &                                                         \
-            0x00FF; /* make sure we only store ONE byte, the lower one */    \
-        ADV_PC(cpu, 1);                                                      \
-        ADV_CYCLES(cpu, 8);                                                  \
+#define DEF_SBC_A_U8(OP)                                                                       \
+    static void op_##OP##_sbc_a_u8(CPU *cpu) {                                                 \
+        /* 1. a <- a - u8 - carry */                                                           \
+        uint8_t byte_read = mem_read(cpu->pc);                                                 \
+        uint16_t result   = (cpu)->a - byte_read - get_flag(cpu, FLAG_C);                      \
+        /* 2. set flags */                                                                     \
+        set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                                           \
+        set_flag(cpu, FLAG_N, 1);                                                              \
+        set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) < (byte_read & 0x0F) + get_flag(cpu, FLAG_C)); \
+        set_flag(cpu, FLAG_C, result > 0xFF);                                                  \
+        (cpu)->a = result & 0x00FF; /* make sure we only store ONE byte, the lower one */      \
+        ADV_PC(cpu, 1);                                                                        \
+        ADV_CYCLES(cpu, 8);                                                                    \
     }
 
 #define DEF_AND_A_R8(OP, R8)                     \
@@ -442,7 +404,7 @@ inline void call_u16(CPU *cpu) {
     static void op_##OP##_cp_a_hlptr(CPU *cpu) {                       \
         /* 1. a - (hl), but discard the result */                      \
         uint8_t byte_read = mem_read((cpu)->hl);                       \
-        uint16_t result = (cpu)->a - byte_read;                        \
+        uint16_t result   = (cpu)->a - byte_read;                      \
         /* 2. set flags */                                             \
         set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                   \
         set_flag(cpu, FLAG_N, 1);                                      \
@@ -455,7 +417,7 @@ inline void call_u16(CPU *cpu) {
     static void op_##OP##_cp_a_u8(CPU *cpu) {                          \
         /* 1. a - u8, but discard the result */                        \
         uint8_t byte_read = mem_read(cpu->pc);                         \
-        uint16_t result = (cpu)->a - byte_read;                        \
+        uint16_t result   = (cpu)->a - byte_read;                      \
         /* 2. set flags */                                             \
         set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                   \
         set_flag(cpu, FLAG_N, 1);                                      \
@@ -521,7 +483,7 @@ inline void call_u16(CPU *cpu) {
     static void op_##OP##_ld_##R8##_u16ptr(CPU *cpu) { \
         /* r8 <- (u16) */                              \
         uint16_t addr = mem_read16((cpu)->pc);         \
-        (cpu)->R8 = mem_read(addr);                    \
+        (cpu)->R8     = mem_read(addr);                \
         ADV_PC(cpu, 2);                                \
         ADV_CYCLES(cpu, 16);                           \
     }
@@ -595,7 +557,7 @@ inline void call_u16(CPU *cpu) {
     static void op_##OP##_push_##R16(CPU *cpu) {     \
         /* 1. get the high and low bytes of r16 */   \
         uint8_t high = high_byte(cpu->R16);          \
-        uint8_t low = low_byte(cpu->R16);            \
+        uint8_t low  = low_byte(cpu->R16);           \
         /* 2. first, write the high, then the low */ \
         cpu->sp--;                                   \
         mem_write(cpu->sp, high);                    \
@@ -607,10 +569,10 @@ inline void call_u16(CPU *cpu) {
 #define DEF_POP_R16(OP, R16)                    \
     static void op_##OP##_pop_##R16(CPU *cpu) { \
         /* 1. pop the low byte first */         \
-        uint8_t low = mem_read(cpu->sp++);      \
+        uint8_t low  = mem_read(cpu->sp++);     \
         uint8_t high = mem_read(cpu->sp++);     \
         /* 2. combine the two bytes into r16 */ \
-        cpu->R16 = (high << 8) | low;           \
+        cpu->R16     = (high << 8) | low;       \
         ADV_CYCLES(cpu, 12);                    \
     }
 
@@ -680,7 +642,7 @@ inline void call_u16(CPU *cpu) {
     static void op_##OP##_jp(CPU *cpu) {       \
         /* unconditional jump */               \
         uint16_t addr = mem_read16((cpu)->pc); \
-        (cpu)->pc = addr;                      \
+        (cpu)->pc     = addr;                  \
         ADV_CYCLES(cpu, 16);                   \
     }
 
@@ -715,9 +677,9 @@ inline void call_u16(CPU *cpu) {
 #define DEF_RET(OP)                                                      \
     static void op_##OP##_ret(CPU *cpu) {                                \
         /* 1. pop the return address (low byte first, then high byte) */ \
-        uint8_t low = mem_read(cpu->sp++);                               \
+        uint8_t low  = mem_read(cpu->sp++);                              \
         uint8_t high = mem_read(cpu->sp++);                              \
-        cpu->pc = (high << 8) | low;                                     \
+        cpu->pc      = (high << 8) | low;                                \
         ADV_CYCLES(cpu, 16);                                             \
     }
 
@@ -727,5 +689,269 @@ inline void call_u16(CPU *cpu) {
         BODY;                                \
         ADV_CYCLES(cpu, CYC);                \
     }
+
+/* x8/rsb (cb-prefixed) -------------------- */
+#define DEF_RLC_R8(OP, R8)                               \
+    static void op_##OP##_rlc_##R8(CPU *cpu) {           \
+        /* 1. r8 <- r8 << 1 and set carry to high bit */ \
+        uint8_t bit_7 = (cpu)->R8 & 0x80;                \
+        (cpu)->R8 <<= 1;                                 \
+        (cpu)->R8 |= bit_7 >> 7;                         \
+        /* 2. set flags */                               \
+        set_flag(cpu, FLAG_Z, (cpu)->R8 == 0);           \
+        set_flag(cpu, FLAG_N, 0);                        \
+        set_flag(cpu, FLAG_H, 0);                        \
+        set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);            \
+        ADV_CYCLES(cpu, 8);                              \
+    }
+
+#define DEF_RLC_HLPTR(OP)                                     \
+    static void op_##OP##_rlc_hlptr(CPU *cpu) {               \
+        /* 1. (hl) <- (hl) << 1  and set carry to high bit */ \
+        uint8_t byte_read = mem_read((cpu)->hl);              \
+        uint8_t bit_7     = byte_read & 0x80;                 \
+        byte_read <<= 1;                                      \
+        byte_read |= bit_7 >> 7;                              \
+        mem_write((cpu)->hl, byte_read);                      \
+        /* 2. set flags */                                    \
+        set_flag(cpu, FLAG_Z, byte_read == 0);                \
+        set_flag(cpu, FLAG_N, 0);                             \
+        set_flag(cpu, FLAG_H, 0);                             \
+        set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);                 \
+        ADV_CYCLES(cpu, 16);                                  \
+    }
+
+#define DEF_RRC_R8(OP, R8)                              \
+    static void op_##OP##_rrc_##R8(CPU *cpu) {          \
+        /* 1. r8 <- r8 >> 1 and set carry to low bit */ \
+        uint8_t bit_0 = (cpu)->R8 & 0x01;               \
+        (cpu)->R8 >>= 1;                                \
+        (cpu)->R8 |= (bit_0 << 7);                      \
+        /* 2. set flags */                              \
+        set_flag(cpu, FLAG_Z, (cpu)->R8 == 0);          \
+        set_flag(cpu, FLAG_N, 0);                       \
+        set_flag(cpu, FLAG_H, 0);                       \
+        set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);           \
+        ADV_CYCLES(cpu, 8);                             \
+    }
+
+#define DEF_RRC_HLPTR(OP)                               \
+    static void op_##OP##_rrc_hlptr(CPU *cpu) {         \
+        /* 1. r8 <- r8 >> 1 and set carry to low bit */ \
+        uint8_t byte_read = mem_read((cpu)->hl);        \
+        uint8_t bit_0     = byte_read & 0x01;           \
+        byte_read >>= 1;                                \
+        byte_read |= (bit_0 << 7);                      \
+        mem_write((cpu)->hl, byte_read);                \
+        /* 2. set flags */                              \
+        set_flag(cpu, FLAG_Z, byte_read == 0);          \
+        set_flag(cpu, FLAG_N, 0);                       \
+        set_flag(cpu, FLAG_H, 0);                       \
+        set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);           \
+        ADV_CYCLES(cpu, 16);                            \
+    }
+
+#define DEF_RL_R8(OP, R8)                             \
+    static void op_##OP##_rl_##R8(CPU *cpu) {         \
+        /* 1. r8 <- r8 << 1 through the carry flag */ \
+        uint8_t bit_7 = (cpu)->R8 & 0x80;             \
+        (cpu)->R8 <<= 1;                              \
+        (cpu)->R8 |= get_flag(cpu, FLAG_C);           \
+        /* 2. set flags */                            \
+        set_flag(cpu, FLAG_Z, (cpu)->R8 == 0);        \
+        set_flag(cpu, FLAG_N, 0);                     \
+        set_flag(cpu, FLAG_H, 0);                     \
+        set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);         \
+        ADV_CYCLES(cpu, 8);                           \
+    }
+
+#define DEF_RL_HLPTR(OP)                                  \
+    static void op_##OP##_rl_hlptr(CPU *cpu) {            \
+        /* 1. (hl) <- (hl) << 1 through the carry flag */ \
+        uint8_t byte_read = mem_read((cpu)->hl);          \
+        uint8_t bit_7     = byte_read & 0x80;             \
+        byte_read <<= 1;                                  \
+        byte_read |= get_flag(cpu, FLAG_C);               \
+        mem_write((cpu)->hl, byte_read);                  \
+        /* 2. set flags */                                \
+        set_flag(cpu, FLAG_Z, byte_read == 0);            \
+        set_flag(cpu, FLAG_N, 0);                         \
+        set_flag(cpu, FLAG_H, 0);                         \
+        set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);             \
+        ADV_CYCLES(cpu, 16);                              \
+    }
+
+#define DEF_RR_R8(OP, R8)                             \
+    static void op_##OP##_rr_##R8(CPU *cpu) {         \
+        /* 1. r8 <- r8 >> 1 through the carry flag */ \
+        uint8_t bit_0 = (cpu)->R8 & 0x01;             \
+        (cpu)->R8 >>= 1;                              \
+        (cpu)->R8 |= (get_flag(cpu, FLAG_C) << 7);    \
+        /* 2. set flags */                            \
+        set_flag(cpu, FLAG_Z, (cpu)->R8 == 0);        \
+        set_flag(cpu, FLAG_N, 0);                     \
+        set_flag(cpu, FLAG_H, 0);                     \
+        set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);         \
+        ADV_CYCLES(cpu, 8);                           \
+    }
+
+#define DEF_RR_HLPTR(OP)                                  \
+    static void op_##OP##_rr_hlptr(CPU *cpu) {            \
+        /* 1. (hl) <- (hl) >> 1 through the carry flag */ \
+        uint8_t byte_read = mem_read((cpu)->hl);          \
+        uint8_t bit_0     = byte_read & 0x01;             \
+        byte_read >>= 1;                                  \
+        byte_read |= (get_flag(cpu, FLAG_C) << 7);        \
+        mem_write((cpu)->hl, byte_read);                  \
+        /* 2. set flags */                                \
+        set_flag(cpu, FLAG_Z, byte_read == 0);            \
+        set_flag(cpu, FLAG_N, 0);                         \
+        set_flag(cpu, FLAG_H, 0);                         \
+        set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);             \
+        ADV_CYCLES(cpu, 16);                              \
+    }
+
+#define DEF_SLA_R8(OP, R8)                     \
+    static void op_##OP##_sla_##R8(CPU *cpu) { \
+        /* 1. shift left arithmetically */     \
+        /* flag_c <- bit7, bit0 <- 0 */        \
+        uint8_t bit_7 = (cpu)->R8 & 0x80;      \
+        (cpu)->R8 <<= 1;                       \
+        (cpu)->R8 &= ~1;                       \
+        /* 2. set flags */                     \
+        set_flag(cpu, FLAG_Z, (cpu)->R8 == 0); \
+        set_flag(cpu, FLAG_N, 0);              \
+        set_flag(cpu, FLAG_H, 0);              \
+        set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);  \
+        ADV_CYCLES(cpu, 8);                    \
+    }
+
+#define DEF_SLA_HLPTR(OP)                        \
+    static void op_##OP##_sla_hlptr(CPU *cpu) {  \
+        /* 1. shift left arithmetically */       \
+        /* flag_c <- bit7, bit0 <- 0 */          \
+        uint8_t byte_read = mem_read((cpu)->hl); \
+        uint8_t bit_7     = byte_read & 0x80;    \
+        byte_read <<= 1;                         \
+        byte_read &= ~1;                         \
+        mem_write((cpu)->hl, byte_read);         \
+        /* 2. set flags */                       \
+        set_flag(cpu, FLAG_Z, byte_read == 0);   \
+        set_flag(cpu, FLAG_N, 0);                \
+        set_flag(cpu, FLAG_H, 0);                \
+        set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);    \
+        ADV_CYCLES(cpu, 8);                      \
+    }
+
+#define DEF_SRA_R8(OP, R8)                     \
+    static void op_##OP##_sra_##R8(CPU *cpu) { \
+        /* 1. shift right arithmetically */    \
+        /* flag_c <- bit0, bit7 unchanged */   \
+        uint8_t bit_0 = (cpu)->R8 & 0x01;      \
+        (cpu)->R8 >>= 1;                       \
+        /* 2. set flags */                     \
+        set_flag(cpu, FLAG_Z, (cpu)->R8 == 0); \
+        set_flag(cpu, FLAG_N, 0);              \
+        set_flag(cpu, FLAG_H, 0);              \
+        set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);  \
+        ADV_CYCLES(cpu, 8);                    \
+    }
+
+#define DEF_SRA_HLPTR(OP)                        \
+    static void op_##OP##_sra_hlptr(CPU *cpu) {  \
+        /* 1. shift right arithmetically */      \
+        /* flag_c <- bit0, bit7 unchanged */     \
+        uint8_t byte_read = mem_read((cpu)->hl); \
+        uint8_t bit_0     = byte_read & 0x01;    \
+        byte_read >>= 1;                         \
+        mem_write((cpu)->hl, byte_read);         \
+        /* 2. set flags */                       \
+        set_flag(cpu, FLAG_Z, byte_read == 0);   \
+        set_flag(cpu, FLAG_N, 0);                \
+        set_flag(cpu, FLAG_H, 0);                \
+        set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);    \
+        ADV_CYCLES(cpu, 8);                      \
+    }
+
+#define DEF_SWAP_R8(OP, R8)                              \
+    static void op_##OP##_swap_##R8(CPU *cpu) {          \
+        /* 1. swap the nibbles */                        \
+        (cpu)->R8 = ((cpu)->R8 << 4) | ((cpu)->R8 >> 4); \
+        /* 2. set flags */                               \
+        set_flag(cpu, FLAG_Z, (cpu)->R8 == 0);           \
+        set_flag(cpu, FLAG_N, 0);                        \
+        set_flag(cpu, FLAG_H, 0);                        \
+        set_flag(cpu, FLAG_C, 0);                        \
+        ADV_CYCLES(cpu, 8);                              \
+    }
+
+#define DEF_SWAP_HLPTR(OP)                                       \
+    static void op_##OP##_swap_hlptr(CPU *cpu) {                 \
+        /* 1. swap the nibbles */                                \
+        uint8_t byte_read = mem_read((cpu)->hl);                 \
+        byte_read         = (byte_read << 4) | (byte_read >> 4); \
+        mem_write((cpu)->hl, byte_read);                         \
+        /* 2. set flags */                                       \
+        set_flag(cpu, FLAG_Z, byte_read == 0);                   \
+        set_flag(cpu, FLAG_N, 0);                                \
+        set_flag(cpu, FLAG_H, 0);                                \
+        set_flag(cpu, FLAG_C, 0);                                \
+        ADV_CYCLES(cpu, 16);                                     \
+    }
+
+#define DEF_SRL_R8(OP, R8)                     \
+    static void op_##OP##_srl_##R8(CPU *cpu) { \
+        /* 1. shift right locally */           \
+        /* flag_c <- bit0, bit7 <- 0 */        \
+        uint8_t bit_0 = (cpu)->R8 & 0x01;      \
+        (cpu)->R8 >>= 1;                       \
+        (cpu)->R8 &= ~0x80;                    \
+        /* 2. set flags */                     \
+        set_flag(cpu, FLAG_Z, (cpu)->R8 == 0); \
+        set_flag(cpu, FLAG_N, 0);              \
+        set_flag(cpu, FLAG_H, 0);              \
+        set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);  \
+        ADV_CYCLES(cpu, 8);                    \
+    }
+
+#define DEF_SRL_HLPTR(OP)                        \
+    static void op_##OP##_srl_hlptr(CPU *cpu) {  \
+        /* 1. shift right locally */             \
+        /* flag_c <- bit0, bit7 <- 0 */          \
+        uint8_t byte_read = mem_read((cpu)->hl); \
+        uint8_t bit_0     = byte_read & 0x01;    \
+        byte_read >>= 1;                         \
+        byte_read &= ~0x80;                      \
+        mem_write((cpu)->hl, byte_read);         \
+        /* 2. set flags */                       \
+        set_flag(cpu, FLAG_Z, byte_read == 0);   \
+        set_flag(cpu, FLAG_N, 0);                \
+        set_flag(cpu, FLAG_H, 0);                \
+        set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);    \
+        ADV_CYCLES(cpu, 16);                     \
+    }
+
+#define DEF_BIT_U3_R8(OP, BIT, R8)                      \
+    static void op_##OP##_bit_##BIT##_##R8(CPU *cpu) {  \
+        /* 1. test bit BIT in r8 */                     \
+        uint8_t mask = 1 << BIT;                        \
+        set_flag(cpu, FLAG_Z, ((cpu)->R8 & mask) == 0); \
+        set_flag(cpu, FLAG_N, 0);                       \
+        set_flag(cpu, FLAG_H, 1);                       \
+        ADV_CYCLES(cpu, 8);                             \
+    }
+
+#define DEF_BIT_U3_HLPTR(OP, BIT)                       \
+    static void op_##OP##_bit_##BIT##_hlptr(CPU *cpu) { \
+        /* 1. test bit BIT in (hl) */                   \
+        uint8_t byte_read = mem_read((cpu)->hl);        \
+        uint8_t mask      = 1 << BIT;                   \
+        set_flag(cpu, FLAG_Z, (byte_read & mask) == 0); \
+        set_flag(cpu, FLAG_N, 0);                       \
+        set_flag(cpu, FLAG_H, 1);                       \
+        ADV_CYCLES(cpu, 12);                            \
+    }
+
+/* helper to pretty much use all opcode macros, keeps the main lib code cleaner */
 
 #endif
