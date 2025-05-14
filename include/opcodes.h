@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "cpu.h"
+#include "mmu.h"
 
 // flags mask
 #define FLAG_Z                                               \
@@ -21,10 +22,17 @@
     0x10 /* carry flag: when the result of an 8-bit addition is higher than \
     $FF the mask 0x10 is 0001 0000 in binary */
 
-// forward declarations for memory access functions (bus.h)
-uint8_t mem_read(uint16_t addr);
-uint16_t mem_read16(uint16_t addr);
-void mem_write(uint16_t addr, uint8_t val);
+/* macros to avoid rewriting everything after mmu refactor. maybe one day i'll
+ * replace everything */
+#undef mem_read
+#undef mem_read16
+#undef mem_write
+#undef mem_write16
+
+#define mem_read(addr) mmu_read((cpu)->mmu, (addr))
+#define mem_read16(addr) mmu_read16((cpu)->mmu, (addr))
+#define mem_write(addr, v) mmu_write((cpu)->mmu, (addr), (v))
+#define mem_write16(addr, v) mmu_write16((cpu)->mmu, (addr), (v))
 
 // decode and execute the opcode (switch statement)
 void decode_and_execute(CPU *cpu, uint8_t op);
@@ -53,8 +61,7 @@ inline void set_flag(CPU *cpu, uint8_t flag, int enable) {
     }
 }
 
-static inline void add_i8_to_u16(uint16_t sp, int8_t off, uint16_t *out,
-                                 CPU *cpu) {
+inline void add_i8_to_u16(uint16_t sp, int8_t off, uint16_t *out, CPU *cpu) {
     uint16_t res = sp + off;
     uint16_t tmp = sp ^ off ^ res;      /* XOR catches carries/borrows */
     set_flag(cpu, FLAG_H, tmp & 0x10);  /* carry from bit 3 */
@@ -470,6 +477,7 @@ inline void ret(CPU *cpu) {
         set_flag(cpu, FLAG_N, 0);             \
         set_flag(cpu, FLAG_H, 0);             \
         set_flag(cpu, FLAG_C, 0);             \
+        ADV_PC(cpu, 1);                       \
         ADV_CYCLES(cpu, 8);                   \
     }
 
@@ -865,6 +873,32 @@ inline void ret(CPU *cpu) {
         }                                       \
     }
 
+#define DEF_JP_Z_U16(OP)                       \
+    static void op_##OP##_jp_z_u16(CPU *cpu) { \
+        /* jump if FLAG_Z = 1 */               \
+        uint16_t addr = mem_read16((cpu)->pc); \
+        ADV_PC(cpu, 2);                        \
+        if (get_flag(cpu, FLAG_Z)) {           \
+            (cpu)->pc = addr;                  \
+            ADV_CYCLES(cpu, 16);               \
+        } else {                               \
+            ADV_CYCLES(cpu, 12);               \
+        }                                      \
+    }
+
+#define DEF_JP_C_U16(OP)                       \
+    static void op_##OP##_jp_c_u16(CPU *cpu) { \
+        /* jump if FLAG_C = 1 */               \
+        uint16_t addr = mem_read16((cpu)->pc); \
+        ADV_PC(cpu, 2);                        \
+        if (get_flag(cpu, FLAG_C)) {           \
+            (cpu)->pc = addr;                  \
+            ADV_CYCLES(cpu, 16);               \
+        } else {                               \
+            ADV_CYCLES(cpu, 12);               \
+        }                                      \
+    }
+
 #define DEF_CALL_U16(OP)                       \
     static void op_##OP##_call_u16(CPU *cpu) { \
         /* use the CALL helper */              \
@@ -886,6 +920,28 @@ inline void ret(CPU *cpu) {
     static void op_##OP##_call_nc_u16(CPU *cpu) {     \
         /* call if FLAG_C = 0 */                      \
         if (!get_flag(cpu, FLAG_C)) {                 \
+            CALL_U16(cpu); /* push the return addr */ \
+        } else {                                      \
+            ADV_PC(cpu, 2);                           \
+            ADV_CYCLES(cpu, 12);                      \
+        }                                             \
+    }
+
+#define DEF_CALL_Z_U16(OP)                            \
+    static void op_##OP##_call_z_u16(CPU *cpu) {      \
+        /* call if FLAG_Z = 1 */                      \
+        if (get_flag(cpu, FLAG_Z)) {                  \
+            CALL_U16(cpu); /* push the return addr */ \
+        } else {                                      \
+            ADV_PC(cpu, 2);                           \
+            ADV_CYCLES(cpu, 12);                      \
+        }                                             \
+    }
+
+#define DEF_CALL_C_U16(OP)                            \
+    static void op_##OP##_call_c_u16(CPU *cpu) {      \
+        /* call if FLAG_C = 1 */                      \
+        if (get_flag(cpu, FLAG_C)) {                  \
             CALL_U16(cpu); /* push the return addr */ \
         } else {                                      \
             ADV_PC(cpu, 2);                           \
@@ -946,6 +1002,27 @@ inline void ret(CPU *cpu) {
         } else {                            \
             ADV_CYCLES(cpu, 8);             \
         }                                   \
+    }
+
+#define DEF_RETI(OP)                       \
+    static void op_##OP##_reti(CPU *cpu) { \
+        /* 1. pop the return address */    \
+        RET(cpu);                          \
+        /* 2. enable interrupts */         \
+        cpu->ime = 1;                      \
+        ADV_CYCLES(cpu, 16);               \
+    }
+
+#define DEF_RST(OP, ADDR)                        \
+    static void op_##OP##_rst_##ADDR(CPU *cpu) { \
+        /* 1. push the return address */         \
+        cpu->sp--;                               \
+        mem_write(cpu->sp, high_byte(cpu->pc));  \
+        cpu->sp--;                               \
+        mem_write(cpu->sp, low_byte(cpu->pc));   \
+        /* 2. jump to the reset address */       \
+        cpu->pc = ADDR;                          \
+        ADV_CYCLES(cpu, 16);                     \
     }
 
 /*  control/misc --------------------------- */

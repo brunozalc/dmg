@@ -241,14 +241,27 @@ DEF_RET_NZ(0xc0)      /* RET NZ -> return if z = 0 */
 DEF_JP_NZ_U16(0xc2)   /* JP NZ, (u16) -> jump if z = 0 */
 DEF_JP(0xc3)          /* JP (u16) */
 DEF_CALL_NZ_U16(0xc4) /* CALL NZ, (u16) -> call if z = 0 */
+DEF_RST(0xc7, 0x0000) /* RST 0x00 */
 DEF_RET_Z(0xc8)       /* RET Z -> return if z = 1 */
-DEF_CALL_U16(0xcd)    /* CALL (u16) */
 DEF_RET(0xc9)         /* RET */
+DEF_JP_Z_U16(0xca)    /* JP Z, (u16) -> jump if z = 1 */
+DEF_CALL_Z_U16(0xcc)  /* CALL Z, (u16) -> call if z = 1 */
+DEF_CALL_U16(0xcd)    /* CALL (u16) */
+DEF_RST(0xcf, 0x0008) /* RST 0x08 */
 DEF_RET_NC(0xd0)      /* RET NC -> return if c = 0 */
 DEF_JP_NC_U16(0xd2)   /* JP NC, (u16) -> jump if c = 0 */
 DEF_CALL_NC_U16(0xd4) /* CALL NC, (u16) -> call if c = 0 */
+DEF_RST(0xd7, 0x0010) /* RST 0x10 */
 DEF_RET_C(0xd8)       /* RET C -> return if c = 1 */
+DEF_RETI(0xd9)        /* RETI */
+DEF_JP_C_U16(0xda)    /* JP C, (u16) -> jump if c = 1 */
+DEF_CALL_C_U16(0xdc)  /* CALL C, (u16) -> call if c = 1 */
+DEF_RST(0xdf, 0x0018) /* RST 0x18 */
+DEF_RST(0xe7, 0x0020) /* RST 0x20 */
 DEF_JP_HL(0xe9)       /* JP HL -> jump to HL */
+DEF_RST(0xef, 0x0028) /* RST 0x28 */
+DEF_RST(0xf7, 0x0030) /* RST 0x30 */
+DEF_RST(0xff, 0x0038) /* RST 0x38 */
 
 /* ---- x8/rsb (cb-prefixed) ---- */
 DEF_RLA()
@@ -769,14 +782,27 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
         case 0xC2: op_0xc2_jp_nz_u16(cpu); break;
         case 0xC3: op_0xc3_jp(cpu); break;
         case 0xC4: op_0xc4_call_nz_u16(cpu); break;
+        case 0xC7: op_0xc7_rst_0x0000(cpu); break;
         case 0xC8: op_0xc8_ret_z(cpu); break;
         case 0xC9: op_0xc9_ret(cpu); break;
+        case 0xCA: op_0xca_jp_z_u16(cpu); break;
+        case 0xCC: op_0xcc_call_z_u16(cpu); break;
         case 0xCD: op_0xcd_call_u16(cpu); break;
+        case 0xCF: op_0xcf_rst_0x0008(cpu); break;
         case 0xD0: op_0xd0_ret_nc(cpu); break;
         case 0xD2: op_0xd2_jp_nc_u16(cpu); break;
         case 0xD4: op_0xd4_call_nc_u16(cpu); break;
+        case 0xD7: op_0xd7_rst_0x0010(cpu); break;
         case 0xD8: op_0xd8_ret_c(cpu); break;
+        case 0xD9: op_0xd9_reti(cpu); break;
+        case 0xDA: op_0xda_jp_c_u16(cpu); break;
+        case 0xDC: op_0xdc_call_c_u16(cpu); break;
+        case 0xDF: op_0xdf_rst_0x0018(cpu); break;
+        case 0xE7: op_0xe7_rst_0x0020(cpu); break;
         case 0xE9: op_0xe9_jp_hl(cpu); break;
+        case 0xEF: op_0xef_rst_0x0028(cpu); break;
+        case 0xF7: op_0xf7_rst_0x0030(cpu); break;
+        case 0xFF: op_0xff_rst_0x0038(cpu); break;
 
         /* ---- ctrl/misc ---- */
         case 0x00: op_0x00_nop(cpu); break;
