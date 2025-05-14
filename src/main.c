@@ -1,9 +1,18 @@
 #include <raylib.h>
 #include <stdio.h>
 
-#include "bus.h"
 #include "cpu.h"
+#include "mmu.h"
 #include "rom.h"
+
+// window information
+const int DISPLAY_SCALE = 4;
+const int HEIGHT_PX     = 144;
+const int WIDTH_PX      = 160;
+
+// declare the components
+CPU cpu;
+MMU mmu;
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -17,20 +26,13 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    const char* rom_file    = argv[1];
+    const char* rom_file = argv[1];
 
-    const int DISPLAY_SCALE = 4;
-    const int HEIGHT_PX     = 144;
-    const int WIDTH_PX      = 160;
+    // initialize and reset components
+    cpu_init(&cpu, &mmu);
+    mmu_init(&mmu, &cpu);
 
-    // initialize the CPU and reset all states
-    CPU cpu;
-    cpu_reset(&cpu);
-
-    // initialize the memory bus and reset all states
-    mem_reset();
-
-    load_rom(rom_file);
+    load_rom(&mmu, rom_file);
 
     // raylib init
     SetTraceLogLevel(5);
