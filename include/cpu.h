@@ -7,9 +7,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "mmu.h"
+
 extern FILE *cpu_log;
 
-typedef struct {
+typedef struct MMU MMU;
+
+typedef struct CPU {
     // a: accumulator; f: flags
     union {
         struct {
@@ -75,10 +79,17 @@ typedef struct {
     // last opcode executed (debugging)
     uint8_t last_opcode;
 
+    MMU *mmu; /* pointer to the MMU */
+
 } CPU;
 
-void cpu_reset(CPU *cpu);
+void cpu_init(CPU *cpu, MMU *mmu);
 void cpu_step(CPU *cpu);
+
+/* logs cpu state after execution in the format:
+- saves the line in a file called cpu.log
+*/
+inline void log_cpu_state(CPU *cpu);
 
 /* function to log an error
 - prints information about the CPU state when the error occurred
