@@ -135,44 +135,47 @@ inline void ret(CPU *cpu) {
         ADV_CYCLES(cpu, 4);                                                   \
     }
 
-#define DEF_INC_HLPTR(OP)                                                     \
-    static void op_##OP##_i_hlptr(CPU *cpu) {                                 \
-        /* 1. (hl) <- (hl) + 1 */                                             \
-        uint8_t old = mem_read((cpu)->hl);                                    \
-        mem_write((cpu)->hl, old + 1);                                        \
-        /* 2. set flags */                                                    \
-        set_flag(cpu, FLAG_Z, (old + 1) == 0);                                \
-        set_flag(cpu, FLAG_N, 0);                                             \
-        set_flag(cpu, FLAG_H,                                                 \
-                 (old & 0x0F) == 0x0F); /* was the low nibble of the original \
-                                           value 1111? carry will occur */    \
-        ADV_CYCLES(cpu, 12);                                                  \
+#define DEF_INC_HLPTR(OP)                                                    \
+    static void op_##OP##_i_hlptr(CPU *cpu) {                                \
+        /* 1. (hl) <- (hl) + 1 */                                            \
+        uint8_t old_val = mem_read((cpu)->hl);                               \
+        uint8_t new_val = old_val + 1;                                       \
+        mem_write((cpu)->hl, new_val);                                       \
+        /* 2. set flags */                                                   \
+        set_flag(cpu, FLAG_Z, new_val == 0);                                 \
+        set_flag(cpu, FLAG_N, 0);                                            \
+        set_flag(                                                            \
+            cpu, FLAG_H,                                                     \
+            (old_val & 0x0F) == 0x0F); /* was the low nibble of the original \
+                                      value 1111? carry will occur */        \
+        ADV_CYCLES(cpu, 12);                                                 \
     }
 
-#define DEF_DEC_HLPTR(OP)                                                     \
-    static void op_##OP##_d_hlptr(CPU *cpu) {                                 \
-        /* 1. (hl) <- (hl) - 1 */                                             \
-        uint8_t old = mem_read((cpu)->hl);                                    \
-        mem_write((cpu)->hl, old - 1);                                        \
-        /* 2. set flags */                                                    \
-        set_flag(cpu, FLAG_Z, (old - 1) == 0);                                \
-        set_flag(cpu, FLAG_N, 1);                                             \
-        set_flag(cpu, FLAG_H,                                                 \
-                 (old & 0x0F) == 0x00); /* was the low nibble of the original \
-                              value 0000? borrow will occur */                \
-        ADV_CYCLES(cpu, 12);                                                  \
+#define DEF_DEC_HLPTR(OP)                                                \
+    static void op_##OP##_d_hlptr(CPU *cpu) {                            \
+        /* 1. (hl) <- (hl) - 1 */                                        \
+        uint8_t old_val = mem_read((cpu)->hl);                           \
+        uint8_t new_val = old_val - 1;                                   \
+        mem_write((cpu)->hl, new_val);                                   \
+        /* 2. set flags */                                               \
+        set_flag(cpu, FLAG_Z, new_val == 0);                             \
+        set_flag(cpu, FLAG_N, 1);                                        \
+        set_flag(cpu, FLAG_H,                                            \
+                 (old_val & 0x0F) == 0x00); /* was the low nibble of the \
+                              original value 0000? borrow will occur */                                        \
+        ADV_CYCLES(cpu, 12);                                             \
     }
 
 #define DEF_ADD_A_R8(OP, R8)                                                  \
     static void op_##OP##_add_a_##R8(CPU *cpu) {                              \
-        /* 1. r8 <- r8 + r8 */                                                \
+        /* 1. a <- a + r8 */                                                  \
         uint16_t result = (cpu)->a + (cpu)->R8;                               \
         /* 2. set flags */                                                    \
         set_flag(cpu, FLAG_Z, (result & 0xFF) == 0);                          \
         set_flag(cpu, FLAG_N, 0);                                             \
         set_flag(cpu, FLAG_H, ((cpu)->a & 0x0F) + ((cpu)->R8 & 0x0F) > 0x0F); \
         set_flag(cpu, FLAG_C, result > 0xFF);                                 \
-        (cpu)->R8 =                                                           \
+        (cpu)->a =                                                            \
             result &                                                          \
             0x00FF; /* make sure we only store ONE byte, the lower one */     \
         ADV_CYCLES(cpu, 4);                                                   \
@@ -554,6 +557,24 @@ inline void ret(CPU *cpu) {
         ADV_CYCLES(cpu, 4);               \
     }
 
+#define DEF_SCF(OP)                       \
+    static void op_##OP##_scf(CPU *cpu) { \
+        /* 1. set carry flag */           \
+        set_flag(cpu, FLAG_C, 1);         \
+        set_flag(cpu, FLAG_N, 0);         \
+        set_flag(cpu, FLAG_H, 0);         \
+        ADV_CYCLES(cpu, 4);               \
+    }
+
+#define DEF_CCF(OP)                                    \
+    static void op_##OP##_ccf(CPU *cpu) {              \
+        /* 1. flip carry flag */                       \
+        set_flag(cpu, FLAG_C, !get_flag(cpu, FLAG_C)); \
+        set_flag(cpu, FLAG_N, 0);                      \
+        set_flag(cpu, FLAG_H, 0);                      \
+        ADV_CYCLES(cpu, 4);                            \
+    }
+
 /* x16/alu  ----------------------------------- */
 #define DEF_INC_R16(OP, REG)                  \
     static void op_##OP##_i_##REG(CPU *cpu) { \
@@ -717,6 +738,20 @@ inline void ret(CPU *cpu) {
         /* (r16--) <- r8 */                                \
         mem_write((cpu)->R16--, (cpu)->R8);                \
         ADV_CYCLES(cpu, 8);                                \
+    }
+
+#define DEF_LD_A_FF00CPTR(OP)                       \
+    static void op_##OP##_ld_a_ff00cptr(CPU *cpu) { \
+        /* a <- (FF00 + c) */                       \
+        (cpu)->a = mem_read(0xFF00 + (cpu)->c);     \
+        ADV_CYCLES(cpu, 8);                         \
+    }
+
+#define DEF_LD_FF00CPTR_A(OP)                       \
+    static void op_##OP##_ld_ff00cptr_a(CPU *cpu) { \
+        /* (FF00 + c) <- a */                       \
+        mem_write(0xFF00 + (cpu)->c, (cpu)->a);     \
+        ADV_CYCLES(cpu, 8);                         \
     }
 
 /*  x16/lsm  -------------------------------------- */
@@ -1190,7 +1225,9 @@ inline void ret(CPU *cpu) {
         /* 1. shift right arithmetically */    \
         /* flag_c <- bit0, bit7 unchanged */   \
         uint8_t bit_0 = (cpu)->R8 & 0x01;      \
+        uint8_t bit_7 = (cpu)->R8 & 0x80;      \
         (cpu)->R8 >>= 1;                       \
+        (cpu)->R8 |= bit_7;                    \
         /* 2. set flags */                     \
         set_flag(cpu, FLAG_Z, (cpu)->R8 == 0); \
         set_flag(cpu, FLAG_N, 0);              \
@@ -1205,7 +1242,9 @@ inline void ret(CPU *cpu) {
         /* flag_c <- bit0, bit7 unchanged */     \
         uint8_t byte_read = mem_read((cpu)->hl); \
         uint8_t bit_0 = byte_read & 0x01;        \
+        uint8_t bit_7 = byte_read & 0x80;        \
         byte_read >>= 1;                         \
+        byte_read |= bit_7;                      \
         mem_write((cpu)->hl, byte_read);         \
         /* 2. set flags */                       \
         set_flag(cpu, FLAG_Z, byte_read == 0);   \
@@ -1351,7 +1390,7 @@ inline void ret(CPU *cpu) {
         (cpu)->a >>= 1;                                 \
         (cpu)->a |= (bit_0 << 7);                       \
         /* 2. set flags */                              \
-        set_flag(cpu, FLAG_Z, (cpu)->a == 0);           \
+        set_flag(cpu, FLAG_Z, 0);                       \
         set_flag(cpu, FLAG_N, 0);                       \
         set_flag(cpu, FLAG_H, 0);                       \
         set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);           \
@@ -1365,7 +1404,7 @@ inline void ret(CPU *cpu) {
         (cpu)->a <<= 1;                               \
         (cpu)->a |= get_flag(cpu, FLAG_C);            \
         /* 2. set flags */                            \
-        set_flag(cpu, FLAG_Z, (cpu)->a == 0);         \
+        set_flag(cpu, FLAG_Z, 0);                     \
         set_flag(cpu, FLAG_N, 0);                     \
         set_flag(cpu, FLAG_H, 0);                     \
         set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);         \
@@ -1379,7 +1418,7 @@ inline void ret(CPU *cpu) {
         (cpu)->a <<= 1;                                  \
         (cpu)->a |= bit_7 >> 7;                          \
         /* 2. set flags */                               \
-        set_flag(cpu, FLAG_Z, (cpu)->a == 0);            \
+        set_flag(cpu, FLAG_Z, 0);                        \
         set_flag(cpu, FLAG_N, 0);                        \
         set_flag(cpu, FLAG_H, 0);                        \
         set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);            \

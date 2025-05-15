@@ -108,6 +108,8 @@ DEF_CP_A_U8(0xfe)  /* CP A, u8 */
 
 DEF_DAA(0x27) /* DAA */
 DEF_CPL(0x2f) /* CPL */
+DEF_SCF(0x37) /* SCF */
+DEF_CCF(0x3f) /* CCF */
 
 /* ---- x16/alu ---- */
 DEF_INC_R16(0x03, bc)    /* INC BC */
@@ -211,9 +213,11 @@ DEF_LD_R8_R8(0x7d, a, l)      /* LD A, L */
 DEF_LD_R8_R16PTR(0x7e, a, hl) /* LD A, (HL) */
 DEF_LD_R8_R8(0x7f, a, a)      /* LD A, A */
 DEF_LD_FF00U8PTR_A(0xe0)      /* LD (FF00 + u8), A */
+DEF_LD_FF00CPTR_A(0xe2)       /* LD (FF00 + C), A */
 DEF_LD_U16PTR_R8(0xea, a)     /* LD (u16), A */
-DEF_LD_R8_U16PTR(0xfa, a)     /* LD A, (u16) */
 DEF_LD_A_FF00U8PTR(0xf0)      /* LD A, (FF00 + u8) */
+DEF_LD_A_FF00CPTR(0xf2)       /* LD A, (FF00 + C) */
+DEF_LD_R8_U16PTR(0xfa, a)     /* LD A, (u16) */
 
 /* ----  x16/lsm ---- */
 DEF_LD_R16_U16(0x01, bc) /* LD BC, u16 */
@@ -580,8 +584,10 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
         case 0x2F: op_0x2f_cpl(cpu); break;
         case 0x34: op_0x34_i_hlptr(cpu); break;
         case 0x35: op_0x35_d_hlptr(cpu); break;
+        case 0x37: op_0x37_scf(cpu); break;
         case 0x3C: op_0x3c_i_a(cpu); break;
         case 0x3D: op_0x3d_d_a(cpu); break;
+        case 0x3F: op_0x3f_ccf(cpu); break;
         case 0x80: op_0x80_add_a_b(cpu); break;
         case 0x81: op_0x81_add_a_c(cpu); break;
         case 0x82: op_0x82_add_a_d(cpu); break;
@@ -752,8 +758,10 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
         case 0x7E: op_0x7e_ld_a_hlptr(cpu); break;
         case 0x7F: op_0x7f_ld_a_a(cpu); break;
         case 0xE0: op_0xe0_ld_ff00u8ptr_a(cpu); break;
+        case 0xE2: op_0xe2_ld_ff00cptr_a(cpu); break;
         case 0xEA: op_0xea_ld_u16ptr_a(cpu); break;
         case 0xF0: op_0xf0_ld_a_ff00u8ptr(cpu); break;
+        case 0xF2: op_0xf2_ld_a_ff00cptr(cpu); break;
         case 0xFA: op_0xfa_ld_a_u16ptr(cpu); break;
 
         /* ---- x16/lsm ---- */
