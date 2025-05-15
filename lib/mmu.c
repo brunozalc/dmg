@@ -14,31 +14,28 @@ void mmu_init(MMU *mmu, struct CPU *cpu) {
 void mmu_reset(MMU *mmu) { memset(mmu->ram, 0, sizeof(mmu->ram)); }
 
 uint8_t mmu_read(MMU *mmu, uint16_t addr) {
-    /* gameboy-doctor helper
-   - if the address read is 0xFF44, return the value of 0x90
-    */
-    if (addr == 0xFF44) {
-        return 0x90;
+    switch (addr) {
+        case 0xFF0F: return (mmu->cpu->ifr & 0x1F) | 0xE0; /* IFR MMIO */
+        case 0xFFFF: return (mmu->cpu->ier & 0x1F) | 0xE0; /* IER MMIO */
+        case 0xFF44: return 0x90;                          /* gameboy-doctor helper */
+        case 0xFF4D:
+        case 0xFF56: return 0xFF;       /* undocumented read */
+        default:     return mmu->ram[addr]; /* normal read */
     }
-
-    /* ier and if MMIO handling */
-    if (addr == 0xFF0F)
-        return (mmu->cpu->ifr & 0x1F) | 0xE0;
-    if (addr == 0xFFFF)
-        return (mmu->cpu->ier & 0x1F) | 0xE0;
-
-    return mmu->ram[addr];
 }
 
 uint16_t mmu_read16(MMU *mmu, uint16_t addr) {
-    /* gameboy-doctor helper
-   - if the address read is 0xFF44, return the value of 0x9Ω
-    */
-    if (addr == 0xFF44) {
-        return 0x90;
+    switch (addr) {
+        case 0xFF0F: return (mmu->cpu->ifr & 0x1F) | 0xE0; /* IFR MMIO */
+        case 0xFFFF: return (mmu->cpu->ier & 0x1F) | 0xE0; /* IER MMIO */
+        case 0xFF44: return 0x90;                          /* gameboy-doctor helper */
+        case 0xFF4D: /* CGB only */ return 0xFF;           /* undocumented read */
+        default:     {
+            /* normal read */
+            uint16_t value = mmu->ram[addr + 1] << 8 | mmu->ram[addr];
+            return value;
+        }
     }
-
-    return (mmu->ram[addr + 1] << 8) | mmu->ram[addr];
 }
 
 void mmu_write(MMU *mmu, uint16_t addr, uint8_t value) {
