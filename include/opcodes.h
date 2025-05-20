@@ -1222,7 +1222,7 @@ inline void ret(CPU *cpu) {
         set_flag(cpu, FLAG_N, 0);                \
         set_flag(cpu, FLAG_H, 0);                \
         set_flag(cpu, FLAG_C, bit_7 ? 1 : 0);    \
-        ADV_CYCLES(cpu, 8);                      \
+        ADV_CYCLES(cpu, 16);                     \
     }
 
 #define DEF_SRA_R8(OP, R8)                     \
@@ -1256,7 +1256,7 @@ inline void ret(CPU *cpu) {
         set_flag(cpu, FLAG_N, 0);                \
         set_flag(cpu, FLAG_H, 0);                \
         set_flag(cpu, FLAG_C, bit_0 ? 1 : 0);    \
-        ADV_CYCLES(cpu, 8);                      \
+        ADV_CYCLES(cpu, 16);                     \
     }
 
 #define DEF_SWAP_R8(OP, R8)                              \
@@ -1353,7 +1353,7 @@ inline void ret(CPU *cpu) {
         uint8_t mask = (uint8_t)(~(1 << BIT));          \
         byte_read &= mask;                              \
         mem_write((cpu)->hl, byte_read);                \
-        ADV_CYCLES(cpu, 12);                            \
+        ADV_CYCLES(cpu, 16);                            \
     }
 
 #define DEF_SET_U3_R8(OP, BIT, R8)                     \
@@ -1371,7 +1371,7 @@ inline void ret(CPU *cpu) {
         uint8_t mask = 1 << BIT;                        \
         byte_read |= mask;                              \
         mem_write((cpu)->hl, byte_read);                \
-        ADV_CYCLES(cpu, 12);                            \
+        ADV_CYCLES(cpu, 16);                            \
     }
 
 #define DEF_RRA()                                     \
