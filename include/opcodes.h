@@ -7,6 +7,7 @@
 
 #include "cpu.h"
 #include "mmu.h"
+#include "timer.h"
 
 // flags mask
 #define FLAG_Z                                               \
@@ -41,7 +42,11 @@ void decode_and_execute(CPU *cpu, uint8_t op);
 inline void advance_pc(CPU *cpu, uint8_t n) { cpu->pc += n; }
 
 // helper to advance the cycles
-inline void advance_cycles(CPU *cpu, uint8_t n) { cpu->cycles += n; }
+inline void advance_cycles(CPU *cpu, uint8_t n) {
+    cpu->cycles += n;
+    timer_update(cpu->timer, n);
+    /* TODO: ppu_update(...) */
+}
 
 // helper to get the high byte of a 16-bit value
 inline uint8_t high_byte(uint16_t val) { return (val >> 8) & 0xFF; }
@@ -162,7 +167,7 @@ inline void ret(CPU *cpu) {
         set_flag(cpu, FLAG_N, 1);                                        \
         set_flag(cpu, FLAG_H,                                            \
                  (old_val & 0x0F) == 0x00); /* was the low nibble of the \
-                              original value 0000? borrow will occur */                                        \
+                              original value 0000? borrow will occur */  \
         ADV_CYCLES(cpu, 12);                                             \
     }
 

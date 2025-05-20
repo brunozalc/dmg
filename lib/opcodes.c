@@ -6,6 +6,32 @@
 #include <stdio.h>
 #include <string.h>
 
+/* function to log CPU errors with useful information */
+static void log_cpu_error(CPU *cpu, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    fprintf(stderr, "\n=== error ===\n");
+    fprintf(stderr, "pc: 0x%04X\n", cpu->pc);
+    fprintf(stderr, "opcode: 0x%02X\n", cpu->last_opcode);
+    fprintf(stderr, "error: ");
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+
+    // print CPU state
+    fprintf(stderr, "\nCPU state:\n");
+    fprintf(stderr, "A: 0x%02X  F: 0x%02X\n", cpu->a, cpu->f);
+    fprintf(stderr, "B: 0x%02X  C: 0x%02X\n", cpu->b, cpu->c);
+    fprintf(stderr, "D: 0x%02X  E: 0x%02X\n", cpu->d, cpu->e);
+    fprintf(stderr, "H: 0x%02X  L: 0x%02X\n", cpu->h, cpu->l);
+    fprintf(stderr, "sp: 0x%04X\n", cpu->sp);
+    fprintf(stderr, "cycles: %llu\n", cpu->cycles);
+    fprintf(stderr, "===================\n\n");
+
+    va_end(args);
+    exit(1);
+}
+
 /* ----  x8/alu ---- */
 DEF_INC_R8(0x04, b) /* INC B */
 DEF_DEC_R8(0x05, b) /* DEC B */
@@ -562,8 +588,9 @@ DEF_SET_U3_R8(0xff, 7, a) /* SET 7, A */
 
 /* ----  control/misc ---- */
 DEF_IMPLIED(0x00, nop, /* nothing */, 4)
-DEF_IMPLIED(0xf3, di, cpu->ime = cpu->set_ime = 0;, 4)
-DEF_IMPLIED(0xfb, ei, cpu->set_ime = 1;, 4)
+DEF_IMPLIED(0x76, halt, cpu->halt = 1;, 4)
+DEF_IMPLIED(0xf3, di, cpu->ime = cpu->ime_delay = 0;, 4)
+DEF_IMPLIED(0xfb, ei, cpu->ime_delay = 2;, 4)
 
 void decode_and_execute(CPU *cpu, uint8_t op) {
     switch (op) {
@@ -814,6 +841,7 @@ void decode_and_execute(CPU *cpu, uint8_t op) {
 
         /* ---- ctrl/misc ---- */
         case 0x00: op_0x00_nop(cpu); break;
+        case 0x76: op_0x76_halt(cpu); break;
         case 0xF3: op_0xf3_di(cpu); break;
         case 0xFB: op_0xfb_ei(cpu); break;
 
