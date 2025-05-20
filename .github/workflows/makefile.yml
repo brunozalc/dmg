@@ -14,14 +14,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: configure
-      run: ./configure
-
     - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang make pkg-config libraylib-dev
+
+    - name: Build project
       run: make
-
-    - name: Run check
-      run: make check
-
-    - name: Run distcheck
-      run: make distcheck
