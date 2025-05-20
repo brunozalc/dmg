@@ -2,8 +2,19 @@
 #include <stdio.h>
 
 #include "cpu.h"
-#include "mem.h"
+#include "mmu.h"
 #include "rom.h"
+#include "timer.h"
+
+// window information
+const int DISPLAY_SCALE = 4;
+const int HEIGHT_PX     = 144;
+const int WIDTH_PX      = 160;
+
+// declare the components
+CPU cpu;
+MMU mmu;
+Timer timer;
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -11,25 +22,24 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    const char* rom_file      = argv[1];
+    cpu_log = fopen("cpu.log", "w");
+    if (!cpu_log) {
+        perror("cpu.log");
+        exit(1);
+    }
 
-    const int   DISPLAY_SCALE = 4;
-    const int   HEIGHT_PX     = 144;
-    const int   WIDTH_PX      = 160;
+    const char* rom_file = argv[1];
 
-    // initialize the CPU and reset all states
-    CPU         cpu;
-    cpu_reset(&cpu);
+    // initialize and reset components
+    cpu_init(&cpu, &mmu, &timer);
+    mmu_init(&mmu, &cpu, &timer);
+    timer_init(&timer, &cpu, &mmu);
 
-    // initialize the memory bus and reset all states
-    mem_reset();
-
-    load_rom(rom_file);
+    load_rom(&mmu, rom_file);
 
     // raylib init
     SetTraceLogLevel(5);
-    InitWindow(WIDTH_PX * DISPLAY_SCALE, HEIGHT_PX * DISPLAY_SCALE,
-               "sm83 emulator");
+    InitWindow(WIDTH_PX * DISPLAY_SCALE, HEIGHT_PX * DISPLAY_SCALE, "dmg emulator");
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
@@ -44,5 +54,6 @@ int main(int argc, char* argv[]) {
     }
 
     CloseWindow();
+    fclose(cpu_log);
     return 0;
 }

@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 
-void load_rom(const char *filepath);
-void print_rom_header(void);
+#include "mmu.h"
+
+void log_header(MMU *mmu);
+void load_rom(MMU *mmu, const char *filepath);
 
 #endif

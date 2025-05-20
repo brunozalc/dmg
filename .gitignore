@@ -56,5 +56,8 @@ dkms.conf
 .cache/
 
 # Build files and executables
-*.build/
+build/
 gb
+
+# Log files
+*.log

@@ -6,32 +6,21 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "mem.h"
+#include "mmu.h"
 
 static const char *cartridge_type_str(uint8_t t) {
     switch (t) {
-        case 0x00:
-            return "ROM ONLY";
-        case 0x01:
-            return "MBC1";
-        case 0x02:
-            return "MBC1+RAM";
-        case 0x03:
-            return "MBC1+RAM+BATTERY";
-        case 0x08:
-            return "ROM+RAM";
-        case 0x09:
-            return "ROM+RAM+BATTERY";
-        case 0x0F:
-            return "MBC3+TIMER+BATTERY";
-        case 0x11:
-            return "MBC3";
-        case 0x13:
-            return "MBC3+RAM+BATTERY";
-        case 0x19:
-            return "MBC5";
-        default:
-            return "UNKNOWN";
+        case 0x00: return "ROM ONLY";
+        case 0x01: return "MBC1";
+        case 0x02: return "MBC1+RAM";
+        case 0x03: return "MBC1+RAM+BATTERY";
+        case 0x08: return "ROM+RAM";
+        case 0x09: return "ROM+RAM+BATTERY";
+        case 0x0F: return "MBC3+TIMER+BATTERY";
+        case 0x11: return "MBC3";
+        case 0x13: return "MBC3+RAM+BATTERY";
+        case 0x19: return "MBC5";
+        default:   return "UNKNOWN";
     }
 }
 
@@ -53,38 +42,37 @@ static const char *ram_size_str(uint8_t c) {
 - 0x0148: cart rom size
 - 0x0149: cart ram size
  */
-void log_header(void) {
-    const uint8_t *header    = ram + 0x0100;  // header starts at 0x0100
-    char           title[17] = {0};
+void log_header(MMU *mmu) {
+    char title[17] = {0};
 
-    // header + 0x34 -> title
-    memcpy(title, header + 0x34, 16);
+    for (int i = 0; i < 16; i++) {
+        title[i] = mmu_read(mmu, 0x0134 + i);
+    }
 
-    uint8_t cart_type = header[0x47];
-    uint8_t rom_size  = header[0x48];
-    uint8_t ram_size  = header[0x49];
+    uint8_t cart_type = mmu_read(mmu, 0x0147);
+    uint8_t rom_size  = mmu_read(mmu, 0x0148);
+    uint8_t ram_size  = mmu_read(mmu, 0x0149);
 
     printf("\n=== header ===\n");
     printf("title       : %.16s\n", title);
-    printf("cartridge   : 0x%02X (%s)\n", cart_type,
-           cartridge_type_str(cart_type));
+    printf("cartridge   : 0x%02X (%s)\n", cart_type, cartridge_type_str(cart_type));
     printf("ROM size    : %s\n", rom_size_str(rom_size));
     printf("RAM size    : %s\n", ram_size_str(ram_size));
-    printf("region      : %s\n", header[0x4A] ? "West" : "Japan");
-    printf("CGB flag    : 0x%02X\n", header[0x43]);
-    printf("SGB flag    : 0x%02X\n", header[0x46]);
-    printf("================\n");
+    printf("region      : %s\n", mmu_read(mmu, 0x0149) ? "West" : "Japan");
+    printf("CGB flag    : 0x%02X\n", mmu_read(mmu, 0x0143));
+    printf("SGB flag    : 0x%02X\n", mmu_read(mmu, 0x0146));
+    printf("================\n\n");
 }
 
-void load_rom(const char *filepath) {
+void load_rom(MMU *mmu, const char *filepath) {
     FILE *file = fopen(filepath, "rb");
     assert(file && "ROM not found?");
 
-    // without banking yet. games go up to ram[0x8000]
-    size_t read = fread(ram, 1, 0x8000, file);
+    // without banking yet. games go up to rom size 0x8000
+    size_t read = fread(mmu->rom, 1, 0x8000, file);
     fclose(file);
     assert(read);  // making sure we read something
 
     printf("rom loaded: %zu bytes from %s\n", read, filepath);
-    log_header();
+    log_header(mmu);
 }
