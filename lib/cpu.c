@@ -93,13 +93,6 @@ static uint8_t fetch(CPU *cpu) {
 }
 
 void cpu_step(CPU *cpu) {
-    /* pass the signal to ime from the previous instruction
-    see https://gbdev.io/pandocs/Interrupts.html */
-    if (cpu->ime_delay) {
-        cpu->ime_delay--; /* 2 → 1   (during instr N+1 fetch) */
-        if (cpu->ime_delay == 0)
-            cpu->ime = 1; /* becomes 1 *after* instr N+1 exec */
-    }
 
     /* handle halt */
     if (cpu->halt == 1) {
@@ -117,12 +110,20 @@ void cpu_step(CPU *cpu) {
         }
     }
 
+    log_cpu_state(cpu); /* log the previous CPU state */
     /* acknowledge pending interrupts */
     interrupt_servicing_routine(cpu);
 
-    log_cpu_state(cpu); /* log the previous CPU state */
 
     /* fetch the next instruction */
     uint8_t opcode = fetch(cpu);
     decode_and_execute(cpu, opcode);
+    
+    /* pass the signal to ime from the previous instruction
+    see https://gbdev.io/pandocs/Interrupts.html */
+    if (cpu->ime_delay) {
+        cpu->ime_delay--; /* 2 → 1   (during instr N+1 fetch) */
+        if (cpu->ime_delay == 0)
+            cpu->ime = 1; /* becomes 1 *after* instr N+1 exec */
+    }
 }
