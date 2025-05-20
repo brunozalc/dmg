@@ -68,8 +68,8 @@ void load_rom(MMU *mmu, const char *filepath) {
     FILE *file = fopen(filepath, "rb");
     assert(file && "ROM not found?");
 
-    // without banking yet. games go up to ram[0x8000]
-    size_t read = fread(mmu->ram, 1, 0x8000, file);
+    // without banking yet. games go up to rom size 0x8000
+    size_t read = fread(mmu->rom, 1, 0x8000, file);
     fclose(file);
     assert(read);  // making sure we read something
 
