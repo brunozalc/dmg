@@ -4,50 +4,57 @@
 #include <stdint.h>
 
 struct CPU;
-// typedef struct PPU PPU; (TODO)
-// typedef struct Timer Timer; (TODO)
+struct Timer;
+// struct PPU PPU; (TODO)
 
-// MMU as a struct (new MMU design)
 typedef struct MMU {
-    struct CPU *cpu;  // pointer to the CPU
+    struct CPU *cpu;      // pointer to the CPU
+    struct Timer *timer;  // pointer to the timer
     // PPU *ppu;  // pointer to the PPU (TODO)
-    // Timer *timer; // pointer to the timer (TODO)
 
-    // memory regions
-    // for now, using a single array for all memory (64 KB)
-    uint8_t ram[0x10000];  // 64KB of RAM
+    /* cartridge rom banks */
+    uint8_t rom[0x8000];  // 0000h - 7FFFh (without bank switching)
+    // uint8_t rom_bank0[0x4000];  // 16KB 0000h - 3FFFh (fixed)
+    // uint8_t rom_bankx[0x4000];  // 16KB 4000h - 7FFFh (switchable)
 
-    // later, we can add more memory regions for VRAM, OAM, etc.
-    // uint8_t rom_bank0[0x4000];
-    // uint8_t rom_bank_n[0x4000]; // (handled by MBC)
-    // uint8_t vram[0x2000];      // 0x8000 - 0x9FFF
-    // uint8_t external_ram[0x2000]; // 0xA000 - 0xBFFF (cartridge RAM)
-    // uint8_t wram_bank0[0x1000];   // 0xC000 - 0xCFFF
-    // uint8_t wram_bank_n[0x1000];  // 0xD000 - 0xDFFF (switchable CGB)
-    // uint8_t echo_ram[0x1E00];   // 0xE000 - 0xFDFF (mirror of C000-DDFF)
-    // uint8_t oam[0xA0];          // 0xFE00 - 0xFE9F
-    // (I/O registers are 0xFF00 - 0xFF7F - handled by dispatch)
-    // uint8_t hram[0x7F];         // 0xFF80 - 0xFFF
+    /* video ram */
+    uint8_t vram[0x2000];  // 8000h - 9FFFh
+
+    /* external (cartdrige) ram */
+    uint8_t eram[0x2000];  // A000h - BFFFh
+
+    /* work ram */
+    uint8_t wram[0x2000];  // C000h - DFFFh
+
+    // echo ram is prohibited (according to nintendo)
+
+    /* oam (object attribute memory) */
+    uint8_t oam[0x00A0];  // FE00h - FE9Fh
+
+    /* i/o registers */
+    uint8_t io[0x0080];  // FF00h - FF7Fh
+
+    /* high ram */
+    uint8_t hram[0x007F];  // FF80h - FFFFh
+
+    // MBC *mbc;  // memory bank controller (TODO)
+
 } MMU;
 
 // initialize and reset the MMU
-void mmu_init(MMU *mmu, struct CPU *cpu);
+void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer);
 void mmu_reset(MMU *mmu);
 
 // read a 8bit value from the memory bus
-// 8-bit value = ram[addr]
 uint8_t mmu_read(MMU *mmu, uint16_t addr);
 
 // read a 16bit value from the memory bus
-// 16-bit value = ram[addr] + (ram[addr+1] << 8)
 uint16_t mmu_read16(MMU *mmu, uint16_t addr);
 
 // write a 8bit value to the memory bus
-// ram[addr] =  8-bit value
 void mmu_write(MMU *mmu, uint16_t addr, uint8_t value);
 
 // write a 16bit value to the memory bus
-// ram[addr] =  16-bit value
 void mmu_write16(MMU *mmu, uint16_t addr, uint16_t value);
 
 #endif
