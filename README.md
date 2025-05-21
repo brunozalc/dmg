@@ -20,7 +20,7 @@ Want to read more about the project and my learning experience? Check out my per
 | 5     | APU and QOL improvements                                    | ❌     |
 | 6     | Multiplatform support                                       | ❌     |
 
-After that, the plan is to add support for modern controllers such as the Dualsense and Xbox joypads. Eeventually, GBC support should be added as well.
+After that, the plan is to add support for modern controllers such as the Dualsense and Xbox joypads. Eventually, GBC support should be added as well.
 
 ---
 
@@ -37,3 +37,15 @@ This will create a binary file called `gb` in the root directory of the project.
 ```bash
 ./gb <path_to_rom>
 ```
+
+---
+
+## Sources
+
+This project was only possible thanks to the following resources:
+
+1. PanDocs: [link](https://gbdev.io/pandocs/)
+2. Gameboy Memory Map: [link](http://gameboy.mongenel.com/dmg/asmmemmap.html)
+3. gbops, an accurate opcode table: [link](https://izik1.github.io/gbops/)
+4. gbz80(7) opcode reference: [link](https://rgbds.gbdev.io/docs/v0.9.2/gbz80.7)
+5. Complete technical reference: [link](https://gekkio.fi/files/gb-docs/gbctr.pdf)
