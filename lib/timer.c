@@ -35,7 +35,7 @@ void timer_reset(Timer *timer) {
 
 /* called from advance_cycles in opcodes.h
 cycles = 4, 8, 12, 16... */
-void timer_update(Timer *timer, uint8_t cycles) {
+void timer_step(Timer *timer, uint8_t cycles) {
     while (cycles--) {
         /* 1. increment DIV, our system counter */
         timer->div++;
