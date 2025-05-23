@@ -23,7 +23,7 @@ typedef struct Timer {
 
 void timer_init(Timer *timer, struct CPU *cpu, struct MMU *mmu);
 void timer_reset(Timer *timer);
-void timer_update(Timer *timer, uint8_t cycles);
+void timer_step(Timer *timer, uint8_t cycles);
 
 /* mmu helpers */
 void timer_write_div(Timer *t);                 /* write to 0xFF04 */
