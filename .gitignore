@@ -59,5 +59,8 @@ dkms.conf
 build/
 gb
 
+# ROMs
+roms/
+
 # Log files
 *.log
