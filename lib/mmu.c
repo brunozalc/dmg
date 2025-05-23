@@ -6,9 +6,10 @@
 
 #include "cpu.h"
 
-void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer) {
+void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer, struct PPU *ppu) {
     mmu->cpu   = cpu;
     mmu->timer = timer;
+    mmu->ppu   = ppu;
     mmu_reset(mmu);
 }
 
@@ -39,21 +40,22 @@ uint8_t mmu_read(MMU *mmu, uint16_t addr) {
         return 0xFF; /* prohibited area */
     } else if (addr < 0xFF80) {
         switch (addr) {
-            case 0xFF04: return mmu->timer->div >> 8;          /* DIV register */
-            case 0xFF05: return mmu->timer->tima;              /* TIMA register */
-            case 0xFF06: return mmu->timer->tma;               /* TMA register */
-            case 0xFF07: return mmu->timer->tac;               /* TAC register */
-            case 0xFF0F: return (mmu->cpu->ifr & 0x1F) | 0xE0; /* IFR register */
-            case 0xFF44: return 0x90;                          /* gameboy-doctor helper */
+            case DIV:    return mmu->timer->div >> 8;          /* DIV register */
+            case TIMA:   return mmu->timer->tima;              /* TIMA register */
+            case TMA:    return mmu->timer->tma;               /* TMA register */
+            case TAC:    return mmu->timer->tac;               /* TAC register */
+            case IF:     return (mmu->cpu->ifr & 0x1F) | 0xE0; /* IFR register */
+            case LY:     return mmu->ppu->current_scanline;    /* LY register */
             case 0xFF4D:                                       /* undocumented read */
             case 0xFF56: return 0xFF;
             default:     return mmu->io[addr - 0xFF00]; /* read from other IO registers */
         }
-    } else if (addr < 0xFFFF) {
+    } else if (addr < IE) {
         return mmu->hram[addr - 0xFF80]; /* read from HRAM */
-    } else {
-        return (mmu->cpu->ier & 0x1F) | 0xE0; /* IER register */
+    } else if (addr == IE) {
+        return (mmu->cpu->ier); /* IER register */
     }
+    return 0xFF; /* invalid address */
 }
 
 uint16_t mmu_read16(MMU *mmu, uint16_t addr) {
@@ -93,18 +95,18 @@ void mmu_write(MMU *mmu, uint16_t addr, uint8_t value) {
                 }
                 mmu->io[0x02] &= ~0x80; /* clear bit 7: transfer complete */
                 break;
-            case 0xFF04: timer_write_div(mmu->timer); break;         /* reset the DIV register */
-            case 0xFF05: timer_write_tima(mmu->timer, value); break; /* TIMA register */
-            case 0xFF06: timer_write_tma(mmu->timer, value); break;  /* TMA register */
-            case 0xFF07: timer_write_tac(mmu->timer, value); break;  /* TAC register */
-            case 0xFF0F: mmu->cpu->ifr = value & 0x1F; break;        /* IFR register */
-            default:     mmu->io[addr - 0xFF00] = value; break; /* write to other IO registers */
+            case DIV:  timer_write_div(mmu->timer); break;         /* reset the DIV register */
+            case TIMA: timer_write_tima(mmu->timer, value); break; /* TIMA register */
+            case TMA:  timer_write_tma(mmu->timer, value); break;  /* TMA register */
+            case TAC:  timer_write_tac(mmu->timer, value); break;  /* TAC register */
+            case IF:   mmu->cpu->ifr = value & 0x1F; break;        /* IFR register */
+            default:   mmu->io[addr - 0xFF00] = value; break;        /* write to other IO registers */
         }
         return;
-    } else if (addr < 0xFFFF) {
+    } else if (addr < IE) {
         mmu->hram[addr - 0xFF80] = value; /* write to HRAM */
         return;
-    } else {                          /* addr == 0xFFFF */
+    } else if (addr == IE) {
         mmu->cpu->ier = value & 0x1F; /* write to IER register */
     }
 }
