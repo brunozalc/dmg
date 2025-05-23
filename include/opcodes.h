@@ -7,7 +7,6 @@
 
 #include "cpu.h"
 #include "mmu.h"
-#include "timer.h"
 
 // flags mask
 #define FLAG_Z                                               \
@@ -41,13 +40,6 @@ void decode_and_execute(CPU *cpu, uint8_t op);
 // helper to advance the program counter
 inline void advance_pc(CPU *cpu, uint8_t n) { cpu->pc += n; }
 
-// helper to advance the cycles
-inline void advance_cycles(CPU *cpu, uint8_t n) {
-    cpu->cycles += n;
-    timer_update(cpu->timer, n);
-    /* TODO: ppu_update(...) */
-}
-
 // helper to get the high byte of a 16-bit value
 inline uint8_t high_byte(uint16_t val) { return (val >> 8) & 0xFF; }
 
@@ -78,7 +70,7 @@ inline void add_i8_to_u16(uint16_t sp, int8_t off, uint16_t *out, CPU *cpu) {
 
 /* other helpers -------------------------------- */
 #define ADV_PC(cpu, n) advance_pc((cpu), (n))
-#define ADV_CYCLES(cpu, n) advance_cycles((cpu), (n))
+#define ADV_CYCLES(cpu, n) tick((cpu), (n))
 
 inline void call_u16(CPU *cpu) {
     /* 1. fetch the target address (little‑endian) */
