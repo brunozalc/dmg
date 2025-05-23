@@ -36,21 +36,6 @@ void cpu_init(struct CPU *cpu, struct MMU *mmu, struct Timer *timer, struct PPU 
     cpu->sp    = 0xFFFE;
 }
 
-// static void log_cpu_state(CPU *cpu) {
-//     uint8_t b0 = mmu_read(cpu->mmu, cpu->pc);
-//     uint8_t b1 = mmu_read(cpu->mmu, cpu->pc + 1);
-//     uint8_t b2 = mmu_read(cpu->mmu, cpu->pc + 2);
-//     uint8_t b3 = mmu_read(cpu->mmu, cpu->pc + 3);
-
-//     fprintf(cpu_log,
-//             "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X "
-//             "SP:%04X PC:%04X PCMEM:%02X,%02X,%02X,%02X\n",
-//             cpu->a, cpu->f, /* <-- F is raw byte */
-//             cpu->b, cpu->c, cpu->d, cpu->e, cpu->h, cpu->l, cpu->sp, cpu->pc, b0, b1, b2, b3);
-
-//     fflush(cpu_log);
-// }
-
 /* function to tick the emulator components */
 void tick(CPU *cpu, int cycles) {
     cpu->cycles += cycles;
@@ -103,16 +88,15 @@ static uint8_t fetch(CPU *cpu) {
 void cpu_step(CPU *cpu) {
     /* handle halt */
     if (cpu->halt == 1) {
-        uint8_t any_interrupt_flagged = cpu->ifr & 0x1F;             // any IF bit
-        uint8_t enabled_and_flagged   = cpu->ifr & cpu->ier & 0x1F;  // IE & IF
+        uint8_t flagged_and_enabled = cpu->ifr & cpu->ier & 0x1F;  // IE & IF
 
-        if (cpu->ime && enabled_and_flagged) {
+        if (cpu->ime && flagged_and_enabled) {
             /* IME = 1  and an interrupt is ready → leave HALT and service it */
             cpu->halt = 0;
             interrupt_servicing_routine(cpu);
             return;
 
-        } else if (!cpu->ime && enabled_and_flagged) { /* ← change is here */
+        } else if (!cpu->ime && flagged_and_enabled) {
             /* IME = 0  and IE&IF ≠ 0 → trigger HALT-bug (skip next PC increment) */
             cpu->halt     = 0;
             cpu->halt_bug = 1;
@@ -124,8 +108,6 @@ void cpu_step(CPU *cpu) {
             return;
         }
     }
-
-    // log_cpu_state(cpu); /* log the previous CPU state */
 
     /* acknowledge pending interrupts */
     if (cpu->ime) {
