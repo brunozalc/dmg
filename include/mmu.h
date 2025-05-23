@@ -1,21 +1,37 @@
 #ifndef MMU_HEADER
 #define MMU_HEADER
 
+#include <stdbool.h>
 #include <stdint.h>
+
+/* I/O registers addresses */
+#define DIV 0xFF04   // DIV register
+#define TIMA 0xFF05  // TIMA register
+#define TMA 0xFF06   // TMA register
+#define TAC 0xFF07   // TAC register
+#define IF 0xFF0F    // IF register
+#define LCDC 0xFF40  // LCD control
+#define STAT 0xFF41  // LCD status
+#define SCY 0xFF42   // scroll Y
+#define SCX 0xFF43   // scroll X
+#define LY 0xFF44    // current scanline
+#define LYC 0xFF45   // LY compare
+#define BGP 0xFF47   // background palette
+#define IE 0xFFFF    // IE register
 
 struct CPU;
 struct Timer;
-// struct PPU PPU; (TODO)
+struct PPU;
 
 typedef struct MMU {
     struct CPU *cpu;      // pointer to the CPU
     struct Timer *timer;  // pointer to the timer
-    // PPU *ppu;  // pointer to the PPU (TODO)
+    struct PPU *ppu;      // pointer to the PPU
 
     /* cartridge rom banks */
     uint8_t rom[0x8000];  // 0000h - 7FFFh (without bank switching)
-    // uint8_t rom_bank0[0x4000];  // 16KB 0000h - 3FFFh (fixed)
-    // uint8_t rom_bankx[0x4000];  // 16KB 4000h - 7FFFh (switchable)
+    uint8_t rom_bank;     // current rom bank (for MBC1 and MBC2)
+    bool ram_enable;      // ram enabled (for MBC1 and MBC2)
 
     /* video ram */
     uint8_t vram[0x2000];  // 8000h - 9FFFh
@@ -42,7 +58,7 @@ typedef struct MMU {
 } MMU;
 
 // initialize and reset the MMU
-void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer);
+void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer, struct PPU *ppu);
 void mmu_reset(MMU *mmu);
 
 // read a 8bit value from the memory bus

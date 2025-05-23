@@ -3,6 +3,7 @@
 
 #include "cpu.h"
 #include "mmu.h"
+#include "ppu.h"
 #include "rom.h"
 #include "timer.h"
 
@@ -11,9 +12,17 @@ const int DISPLAY_SCALE = 4;
 const int HEIGHT_PX     = 144;
 const int WIDTH_PX      = 160;
 
+Color dmg_palette[4]    = {
+    RAYWHITE,
+    LIGHTGRAY,
+    DARKGRAY,
+    BLACK,
+};
+
 // declare the components
 CPU cpu;
 MMU mmu;
+PPU ppu;
 Timer timer;
 
 int main(int argc, char* argv[]) {
@@ -22,38 +31,63 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    cpu_log = fopen("cpu.log", "w");
-    if (!cpu_log) {
-        perror("cpu.log");
-        exit(1);
-    }
+    // cpu_log = fopen("cpu.log", "w");
+    // if (!cpu_log) {
+    //     perror("cpu.log");
+    //     exit(1);
+    // }
 
     const char* rom_file = argv[1];
 
     // initialize and reset components
-    cpu_init(&cpu, &mmu, &timer);
-    mmu_init(&mmu, &cpu, &timer);
+    mmu_init(&mmu, &cpu, &timer, &ppu);
+    ppu_init(&ppu, &mmu, &cpu);
     timer_init(&timer, &cpu, &mmu);
+    cpu_init(&cpu, &mmu, &timer, &ppu);
 
     load_rom(&mmu, rom_file);
 
     // raylib init
-    SetTraceLogLevel(5);
+    SetTraceLogLevel(LOG_WARNING);
     InitWindow(WIDTH_PX * DISPLAY_SCALE, HEIGHT_PX * DISPLAY_SCALE, "dmg emulator");
     SetTargetFPS(60);
 
+    Image image       = GenImageColor(WIDTH_PX, HEIGHT_PX, BLANK);
+    Texture2D texture = LoadTextureFromImage(image);
+    UnloadImage(image);
+
+    Color display[WIDTH_PX * HEIGHT_PX];
+
     while (!WindowShouldClose()) {
-        for (int i = 0; i < 10000; ++i) {
-            cpu_step(&cpu);
+        // run the CPU until a frame has been completed
+        ppu.frame_completed = 0;
+
+        while (!ppu.frame_completed) {
+            cpu_step(&cpu);  // run the CPU. this also ticks all other components
         }
 
         BeginDrawing();
         ClearBackground(BLACK);
-        DrawText("Hello, Game Boy!", 10, 10, 20, RAYWHITE);
+
+        const uint8_t (*ppu_framebuffer)[LCD_WIDTH] = ppu_get_framebuffer(&ppu);
+
+        for (int y = 0; y < HEIGHT_PX; y++) {
+            for (int x = 0; x < WIDTH_PX; x++) {
+                display[y * WIDTH_PX + x] = dmg_palette[ppu_framebuffer[y][x] & 0x03];
+            }
+        }
+
+        UpdateTexture(texture, display);
+
+        DrawTextureEx(texture, (Vector2){0, 0}, 0.0f, DISPLAY_SCALE, WHITE);
+
+        DrawFPS(10, 10);
+
         EndDrawing();
     }
 
+    UnloadTexture(texture);
     CloseWindow();
-    fclose(cpu_log);
+    // fclose(cpu_log);
     return 0;
 }

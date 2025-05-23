@@ -14,11 +14,12 @@ Want to read more about the project and my learning experience? Check out my per
 | ----- | ----------------------------------------------------------- | ------ |
 | 0     | Project setup                                               | ✅     |
 | 1     | Core emulator w/ CPU emulation and complete instruction set | ✅     |
-| 2     | PPU emulation (part 1)                                      | ⏳     |
-| 3     | Joypad + bank switching                                     | ❌     |
+| 2     | PPU emulation (part 1)                                      | ✅     |
+| 3     | Bank Switching                                              | ⏳     |
 | 4     | PPU emulation (part 2)                                      | ❌     |
-| 5     | APU and QOL improvements                                    | ❌     |
-| 6     | Multiplatform support                                       | ❌     |
+| 5     | Joypad support (keyboard)                                   | ❌     |
+| 6     | APU and QOL improvements                                    | ❌     |
+| 7     | Multiplatform support                                       | ❌     |
 
 After that, the plan is to add support for modern controllers such as the Dualsense and Xbox joypads. Eventually, GBC support should be added as well.
 
