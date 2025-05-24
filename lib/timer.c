@@ -59,37 +59,83 @@ void timer_step(Timer *timer, uint8_t cycles) {
 
         /* 3. handle overflow */
         if (timer->overflow_phase != 0xFF) {
+            timer->overflow_phase++; /* increment overflow phase */
             switch (timer->overflow_phase) {
-                case 1: timer->tima = timer->tma; break;     /* load tma into tima */
-                case 2: request_interrupt(timer); break;     /* request interrupt */
-                case 3: timer->overflow_phase = 0xFF; break; /* done */
+                case 4: timer->tima = timer->tma; break; /* after 4 t-cycles have passed */
+                case 5:
+                    request_interrupt(timer);
+                    timer->overflow_phase = 0xFF;
+                    break; /* request interrupt w/ delay of 1 cycle and reset overflow phase */
             }
-            timer->overflow_phase++;
         }
     }
 }
 
 void timer_write_div(Timer *t) {
-    t->div          = 0;
-    t->prev_div_bit = 0;
+    if (t->tac & 0x04) {
+        uint8_t div_bit = (t->div >> selected_div_bit(t)) & 0x01;
+        if (div_bit && t->overflow_phase == 0xFF) {
+            /* if the timer is enabled and we have a falling edge */
+            if (t->tima == 0xFF) {
+                t->tima           = 0x00; /* reset tima */
+                t->overflow_phase = 0x00; /* start overflow phase */
+            } else {
+                t->tima++; /* increment tima */
+            }
+        }
+    }
+    /* reset DIV register */
+    t->div          = 0; /* reset DIV register to 0x00 */
+    t->prev_div_bit = 0; /* reset previous DIV bit to 0 */
 }
 
 void timer_write_tima(Timer *t, uint8_t value) {
-    if (t->overflow_phase < 2) {
-        /* abort overflow */
-        t->overflow_phase = 0xFF;
-        t->tima           = value;
-    } else if (t->overflow_phase == 2) {
+    if (t->overflow_phase == 0xFF) {
+        /* only write to tima if we are not in overflow phase */
         t->tima = value;
+    } else if (t->overflow_phase < 4) {
+        // writes to tima during overflow ABORT the overflow phase
+        t->overflow_phase = 0xFF;  /* reset overflow phase */
+        t->tima           = value; /* write the new value */
+    } else if (t->overflow_phase == 4) {
+        // ignore writes if tma is being loaded!
+        return;
     } else {
+        // if we are in overflow phase 5, we can finally write to tima
         t->tima = value;
     }
 }
 
-void timer_write_tma(Timer *t, uint8_t value) { t->tma = value; }
+void timer_write_tma(Timer *t, uint8_t value) {
+    t->tma = value; /* write the new value to tma */
+    if (t->overflow_phase == 4) {
+        t->tima = value; /* if we are in overflow phase 4, write tma to tima */
+    }
+}
 
 void timer_write_tac(Timer *t, uint8_t value) {
-    t->tac          = value | 0xF8;
+    uint8_t prev_enable = t->tac & 0x04;                           // previous enable state
+    uint8_t new_enable  = value & 0x04;                            // new enable state
+    uint8_t prev_bit    = (t->div >> selected_div_bit(t)) & 0x01;  // previous selected DIV bit
 
-    t->prev_div_bit = (t->div >> selected_div_bit(t)) & 0x01; /* update the previous bit */
+    t->tac              = value | 0xF8;  // keep bits 3-7 unchanged, only update bits 0-2
+
+    uint8_t new_bit     = (t->div >> selected_div_bit(t)) & 0x01;  // new selected DIV bit
+
+    /* dmg glitch: going from enabled to disabled (NOT VICE-VERSA)
+       or changing frequency causes a falling edge on the selected DIV bit */
+    if ((prev_enable && !new_enable && prev_bit) ||             // enabled -> disabled
+        (prev_enable && new_enable && prev_bit && !new_bit)) {  // changing frequency
+        // falling edge caused by tac write
+        if (t->overflow_phase == 0xFF) {
+            if (t->tima == 0xFF) {
+                t->tima           = 0x00; /* reset tima */
+                t->overflow_phase = 0x00; /* start overflow phase */
+            } else {
+                t->tima++; /* increment tima */
+            }
+        }
+    }
+
+    t->prev_div_bit = new_bit;  // update previous DIV bit
 }
