@@ -35,9 +35,9 @@ int main(int argc, char* argv[]) {
 
     // initialize and reset components
     mmu_init(&mmu, &cpu, &timer, &ppu);
-    ppu_init(&ppu, &mmu, &cpu);
-    timer_init(&timer, &cpu, &mmu);
     cpu_init(&cpu, &mmu, &timer, &ppu);
+    timer_init(&timer, &cpu, &mmu);
+    ppu_init(&ppu, &mmu, &cpu);
 
     load_rom(&mmu, rom_file);
 
