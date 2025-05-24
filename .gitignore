@@ -64,3 +64,6 @@ roms/
 
 # Log files
 *.log
+
+# VSCode settings
+.vscode/
