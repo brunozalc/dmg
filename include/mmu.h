@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "mbc.h"
+
 /* I/O registers addresses */
 #define DIV 0xFF04   // DIV register
 #define TIMA 0xFF05  // TIMA register
@@ -28,8 +30,15 @@ typedef struct MMU {
     struct Timer *timer;  // pointer to the timer
     struct PPU *ppu;      // pointer to the PPU
 
-    /* cartridge rom banks */
-    uint8_t rom[0x8000];  // 0000h - 7FFFh (without bank switching)
+    /* cartridge data */
+    uint8_t *cartridge_rom;     // dynamically allocated ROM data
+    uint32_t cartridge_rom_size; // actual ROM size in bytes
+    uint8_t *cartridge_ram;     // dynamically allocated external RAM
+    uint32_t cartridge_ram_size; // actual RAM size in bytes
+    MBC mbc;                    // memory bank controller
+    
+    /* legacy ROM for compatibility (now points to cartridge_rom) */
+    uint8_t rom[0x8000];  // 0000h - 7FFFh (first 32KB for backwards compatibility)
     uint8_t rom_bank;     // current rom bank (for MBC1 and MBC2)
     bool ram_enable;      // ram enabled (for MBC1 and MBC2)
 
@@ -53,13 +62,14 @@ typedef struct MMU {
     /* high ram */
     uint8_t hram[0x007F];  // FF80h - FFFFh
 
-    // MBC *mbc;  // memory bank controller (TODO)
-
 } MMU;
 
 // initialize and reset the MMU
 void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer, struct PPU *ppu);
 void mmu_reset(MMU *mmu);
+
+// free the memory allocated for the banking controller
+void mmu_cleanup(MMU *mmu);
 
 // read a 8bit value from the memory bus
 uint8_t mmu_read(MMU *mmu, uint16_t addr);

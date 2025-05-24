@@ -9,8 +9,6 @@
 
 #include "opcodes.h"
 
-// FILE *cpu_og = NULL;
-
 /* function to reset and initialize the CPU
 - sets all regular regs to zero
 - puts pc and sp at their designated place

@@ -58,9 +58,14 @@ dkms.conf
 # Build files and executables
 build/
 gb
+gb-debug
+gb-asan
 
 # ROMs
 roms/
 
 # Log files
 *.log
+
+# VSCode settings
+.vscode/

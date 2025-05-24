@@ -15,8 +15,8 @@ Want to read more about the project and my learning experience? Check out my per
 | 0     | Project setup                                               | ✅     |
 | 1     | Core emulator w/ CPU emulation and complete instruction set | ✅     |
 | 2     | PPU emulation (part 1)                                      | ✅     |
-| 3     | Bank Switching                                              | ⏳     |
-| 4     | PPU emulation (part 2)                                      | ❌     |
+| 3     | Bank Switching                                              | ✅     |
+| 4     | PPU emulation (part 2)                                      | ⏳     |
 | 5     | Joypad support (keyboard)                                   | ❌     |
 | 6     | APU and QOL improvements                                    | ❌     |
 | 7     | Multiplatform support                                       | ❌     |
