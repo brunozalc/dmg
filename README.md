@@ -12,9 +12,11 @@ Want to read more about the project and my learning experience? Check out my per
 
 <img src="public/images/tetris.png" alt="Tetris Menu" width="300px" />
 
-<!-- ![Dr. Mario Menu](public/images/dr_mario.png)
-![Blargg's cpu_instrs test](public/images/cpu_instrs.png)
-![dmg-acid2 test](public/images/dmg_acid2.png) -->
+<img src="public/images/dr_mario.png" alt="Dr. Mario Menu" width="300px" />
+
+<img src="public/images/cpu_instrs.png" alt="Blargg's cpu_instrs test" width="300px" />
+
+<img src="public/images/dmg_acid2.png" alt="dmg-acid2 test" width="300px" />
 
 ## Roadmap
 
