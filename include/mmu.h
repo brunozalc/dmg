@@ -7,6 +7,7 @@
 #include "mbc.h"
 
 /* I/O registers addresses */
+#define JOYP 0xFF00  // joypad input
 #define DIV 0xFF04   // DIV register
 #define TIMA 0xFF05  // TIMA register
 #define TMA 0xFF06   // TMA register

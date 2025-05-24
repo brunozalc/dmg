@@ -66,6 +66,7 @@ uint8_t mmu_read(MMU *mmu, uint16_t addr) {
         return 0xFF; /* prohibited area */
     } else if (addr < 0xFF80) {
         switch (addr) {
+            case JOYP:   return 0xFF;                          /* JOYP register (TODO) */
             case DIV:    return mmu->timer->div >> 8;          /* DIV register */
             case TIMA:   return mmu->timer->tima;              /* TIMA register */
             case TMA:    return mmu->timer->tma;               /* TMA register */
