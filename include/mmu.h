@@ -18,6 +18,7 @@
 #define SCX 0xFF43   // scroll X
 #define LY 0xFF44    // current scanline
 #define LYC 0xFF45   // LY compare
+#define DMA 0xFF46   // DMA transfer register
 #define BGP 0xFF47   // background palette
 #define IE 0xFFFF    // IE register
 
@@ -31,16 +32,17 @@ typedef struct MMU {
     struct PPU *ppu;      // pointer to the PPU
 
     /* cartridge data */
-    uint8_t *cartridge_rom;     // dynamically allocated ROM data
-    uint32_t cartridge_rom_size; // actual ROM size in bytes
-    uint8_t *cartridge_ram;     // dynamically allocated external RAM
-    uint32_t cartridge_ram_size; // actual RAM size in bytes
-    MBC mbc;                    // memory bank controller
-    
+    uint8_t *cartridge_rom;       // dynamically allocated ROM data
+    uint32_t cartridge_rom_size;  // actual ROM size in bytes
+    uint8_t *cartridge_ram;       // dynamically allocated external RAM
+    uint32_t cartridge_ram_size;  // actual RAM size in bytes
+    MBC mbc;                      // memory bank controller
+
     /* legacy ROM for compatibility (now points to cartridge_rom) */
-    uint8_t rom[0x8000];  // 0000h - 7FFFh (first 32KB for backwards compatibility)
-    uint8_t rom_bank;     // current rom bank (for MBC1 and MBC2)
-    bool ram_enable;      // ram enabled (for MBC1 and MBC2)
+    uint8_t
+        rom[0x8000];   // 0000h - 7FFFh (first 32KB for backwards compatibility)
+    uint8_t rom_bank;  // current rom bank (for MBC1 and MBC2)
+    bool ram_enable;   // ram enabled (for MBC1 and MBC2)
 
     /* video ram */
     uint8_t vram[0x2000];  // 8000h - 9FFFh
