@@ -86,22 +86,18 @@ static uint8_t fetch(CPU *cpu) {
 void cpu_step(CPU *cpu) {
     /* handle halt */
     if (cpu->halt == 1) {
-        uint8_t flagged_and_enabled = cpu->ifr & cpu->ier & 0x1F;  // IE & IF
+        uint8_t flagged_and_enabled = cpu->ifr & cpu->ier & 0x1F;
 
-        if (cpu->ime && flagged_and_enabled) {
-            /* IME = 1  and an interrupt is ready → leave HALT and service it */
+        if (flagged_and_enabled) {
+            /* an interrupt is pending, so we exit HALT and service it if IME=1 */
             cpu->halt = 0;
-            interrupt_servicing_routine(cpu);
-            return;
-
-        } else if (!cpu->ime && flagged_and_enabled) {
-            /* IME = 0  and IE&IF ≠ 0 → trigger HALT-bug (skip next PC increment) */
-            cpu->halt     = 0;
-            cpu->halt_bug = 1;
-            /* fall through to normal fetch/execute */
-
+            if (cpu->ime) {
+                interrupt_servicing_routine(cpu);
+                return;
+            }
+            /* if IME=0, we just exit HALT and continue execution */
         } else {
-            /* IME = 0 and   IE&IF = 0   (or)   no IF bits at all → stay halted */
+            /* no interrupts pending - stay halted */
             tick(cpu, 4);
             return;
         }

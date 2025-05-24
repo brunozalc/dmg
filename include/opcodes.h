@@ -1064,6 +1064,17 @@ inline void ret(CPU *cpu) {
         ADV_CYCLES(cpu, CYC);                \
     }
 
+#define DEF_HALT(OP)                                              \
+    static void op_##OP##_halt(CPU *cpu) {                        \
+        /* 1. halt the CPU */                                     \
+        uint8_t flagged_and_enabled = cpu->ifr & cpu->ier & 0x1F; \
+        if (cpu->ime == 0 && flagged_and_enabled != 0) {          \
+            cpu->halt_bug = 1;                                    \
+        } else {                                                  \
+            cpu->halt = 1;                                        \
+        }                                                         \
+    }
+
 /* x8/rsb (cb-prefixed) -------------------- */
 #define DEF_RLC_R8(OP, R8)                               \
     static void op_##OP##_rlc_##R8(CPU *cpu) {           \
