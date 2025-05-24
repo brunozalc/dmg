@@ -31,12 +31,6 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // cpu_log = fopen("cpu.log", "w");
-    // if (!cpu_log) {
-    //     perror("cpu.log");
-    //     exit(1);
-    // }
-
     const char* rom_file = argv[1];
 
     // initialize and reset components
@@ -88,6 +82,5 @@ int main(int argc, char* argv[]) {
 
     UnloadTexture(texture);
     CloseWindow();
-    // fclose(cpu_log);
     return 0;
 }
