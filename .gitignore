@@ -58,6 +58,8 @@ dkms.conf
 # Build files and executables
 build/
 gb
+gb-debug
+gb-asan
 
 # ROMs
 roms/
