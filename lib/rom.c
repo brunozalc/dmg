@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "mmu.h"
@@ -68,11 +69,57 @@ void load_rom(MMU *mmu, const char *filepath) {
     FILE *file = fopen(filepath, "rb");
     assert(file && "ROM not found?");
 
-    // without banking yet. games go up to rom size 0x8000
-    size_t read = fread(mmu->rom, 1, 0x8000, file);
-    fclose(file);
-    assert(read);  // making sure we read something
+    /* get file size */
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
 
-    printf("rom loaded: %zu bytes from %s\n", read, filepath);
+    printf("Loading ROM: %s (%ld bytes)\n", filepath, file_size);
+
+    /* clean up any existing cartridge data */
+    mmu_cleanup(mmu);
+
+    /* read cartridge header info first (load at least 32KB for header) */
+    size_t initial_read_size = (file_size < 0x8000) ? file_size : 0x8000;
+    size_t read              = fread(mmu->rom, 1, initial_read_size, file);
+    assert(read > 0x147 && "ROM too small - missing header");
+
+    /* extract header information */
+    uint8_t cart_type     = mmu->rom[0x0147];
+    uint8_t rom_size_code = mmu->rom[0x0148];
+    uint8_t ram_size_code = mmu->rom[0x0149];
+
+    /* initialize MBC */
+    mbc_init(&mmu->mbc, cart_type, rom_size_code, ram_size_code);
+
+    /* allocate and load full ROM */
+    mmu->cartridge_rom_size = mmu->mbc.rom_size;
+    mmu->cartridge_rom      = malloc(mmu->cartridge_rom_size);
+    assert(mmu->cartridge_rom && "Failed to allocate ROM memory");
+
+    /* reset file position and read entire ROM */
+    fseek(file, 0, SEEK_SET);
+    size_t total_read = fread(mmu->cartridge_rom, 1, file_size, file);
+
+    /* pad with 0xFF if ROM is smaller than expected size */
+    if (total_read < mmu->cartridge_rom_size) {
+        memset(mmu->cartridge_rom + total_read, 0xFF, mmu->cartridge_rom_size - total_read);
+    }
+
+    /* copy first 32KB to legacy rom array for backwards compatibility */
+    memcpy(mmu->rom, mmu->cartridge_rom, 0x8000);
+
+    /* allocate external RAM if needed */
+    if (mmu->mbc.ram_size > 0) {
+        mmu->cartridge_ram_size = mmu->mbc.ram_size;
+        mmu->cartridge_ram      = malloc(mmu->cartridge_ram_size);
+        assert(mmu->cartridge_ram && "Failed to allocate RAM memory");
+        memset(mmu->cartridge_ram, 0x00, mmu->cartridge_ram_size); /* Initialize to 0 */
+    }
+
+    fclose(file);
+
+    printf("ROM loaded: %zu bytes (expected %u), MBC Type: %d\n", total_read,
+           mmu->cartridge_rom_size, mmu->mbc.type);
     log_header(mmu);
 }
