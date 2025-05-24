@@ -1,6 +1,7 @@
 #ifndef PPU_HEADER
 #define PPU_HEADER
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -21,6 +22,16 @@
 #define LY 0xFF44    // current scanline
 #define LYC 0xFF45   // LY compare
 #define BGP 0xFF47   // background palette
+#define OBP0 0xFF48  // sprite palette 0
+#define OBP1 0xFF49  // sprite palette 1
+#define WY 0xFF4A    // window Y position
+#define WX 0xFF4B    // window X position
+
+/* OAM */
+#define OAM_START 0xFE00  // start of OAM (object attribute memory)
+#define OAM_SIZE 0xA0     // size of OAM (160 bytes, 40 sprites w/ 4 bytes each)
+#define MAX_SPRITES_PER_SCANLINE \
+    10  // 10 sprites can be displayed per scanline, a hardware quirk
 
 /* CPU and MMU forward declarations */
 struct CPU;
@@ -33,6 +44,14 @@ typedef enum {
     PPU_MODE_DRAWING = 3,
 } ppu_mode;
 
+typedef struct {
+    uint8_t y;           // y coordinate (sprite y + 16)
+    uint8_t x;           // x coordinate (sprite x + 8)
+    uint8_t tile;        // tile index (0-255)
+    uint8_t attributes;  // attributes (palette, x flip, y flip, priority)
+    uint8_t oam_index;   // index in OAM, for priority sorting
+} sprite_t;
+
 typedef struct PPU {
     struct MMU *mmu;
     struct CPU *cpu;
@@ -41,6 +60,15 @@ typedef struct PPU {
     int scanline_cycles;       // how many cycles in the current scanline
     uint8_t current_scanline;  // current scanline (LY register, 0-153)
     ppu_mode mode;             // current PPU mode
+
+    /* window rendering fields */
+    uint8_t window_line_counter;  // current line in the window (0-143)
+    bool window_was_visible;      // flag to indicate if the window was visible
+
+    /* OAM fields */
+    sprite_t scanline_sprites[MAX_SPRITES_PER_SCANLINE];  // sprites in the
+                                                          // current scanline
+    int num_scanline_sprites;  // number of sprites in the current scanline
 
     /* framebuffer */
     uint8_t framebuffer[LCD_HEIGHT]
@@ -66,5 +94,8 @@ void ppu_step(PPU *ppu, int cycles);
 
 /* helper to get current framebuffer data and pass it to the main game loop */
 const uint8_t (*ppu_get_framebuffer(PPU *ppu))[LCD_WIDTH];
+
+/* function to handle DMA transfer */
+void ppu_dma_transfer(PPU *ppu, uint8_t value);
 
 #endif
