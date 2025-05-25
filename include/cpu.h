@@ -85,6 +85,9 @@ typedef struct CPU {
     int halt;     /* 0 or 1, current state */
     int halt_bug; /* 0 or 1, double read bug */
 
+    /* OAM flag (interrupts not allowed) */
+    int dma_flag; /* 0 or 1, current state */
+
     // last opcode executed (debugging)
     uint8_t last_opcode;
 
