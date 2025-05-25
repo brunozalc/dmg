@@ -20,10 +20,10 @@ Color dmg_palette[4]    = {
 };
 
 // declare the components
-CPU cpu;
 MMU mmu;
-PPU ppu;
+CPU cpu;
 Timer timer;
+PPU ppu;
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -31,13 +31,19 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    cpu_log = fopen("cpu.log", "w");
+    if (!cpu_log) {
+        perror("cpu.log");
+        exit(1);
+    }
+
     const char* rom_file = argv[1];
 
     // initialize and reset components
     mmu_init(&mmu, &cpu, &timer, &ppu);
-    ppu_init(&ppu, &mmu, &cpu);
-    timer_init(&timer, &cpu, &mmu);
     cpu_init(&cpu, &mmu, &timer, &ppu);
+    timer_init(&timer, &cpu, &mmu);
+    ppu_init(&ppu, &mmu, &cpu);
 
     load_rom(&mmu, rom_file);
 
@@ -82,5 +88,7 @@ int main(int argc, char* argv[]) {
 
     UnloadTexture(texture);
     CloseWindow();
+
+    fclose(cpu_log);
     return 0;
 }

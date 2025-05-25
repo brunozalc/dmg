@@ -66,6 +66,7 @@ uint8_t mmu_read(MMU *mmu, uint16_t addr) {
         return 0xFF; /* prohibited area */
     } else if (addr < 0xFF80) {
         switch (addr) {
+            case JOYP:   return 0xFF;                          /* JOYP register (TODO) */
             case DIV:    return mmu->timer->div >> 8;          /* DIV register */
             case TIMA:   return mmu->timer->tima;              /* TIMA register */
             case TMA:    return mmu->timer->tma;               /* TMA register */
@@ -120,18 +121,11 @@ void mmu_write(MMU *mmu, uint16_t addr, uint8_t value) {
         return; /* prohibited area */
     } else if (addr < 0xFF80) {
         switch (addr) {
-            case 0xFF02:                    /* blargg test serial output */
-                mmu->io[0x02] = value;      /* write to SC register */
-                if (value & 0x80) {         /* start-transfer bit set? */
-                    putchar(mmu->io[0x01]); /* dump the byte written to SB */
-                    fflush(stdout);
-                }
-                mmu->io[0x02] &= ~0x80; /* clear bit 7: transfer complete */
-                break;
             case DIV:  timer_write_div(mmu->timer); break;         /* reset the DIV register */
             case TIMA: timer_write_tima(mmu->timer, value); break; /* TIMA register */
             case TMA:  timer_write_tma(mmu->timer, value); break;  /* TMA register */
             case TAC:  timer_write_tac(mmu->timer, value); break;  /* TAC register */
+            case DMA:  ppu_dma_transfer(mmu->ppu, value); break;   /* DMA transfer */
             case IF:   mmu->cpu->ifr = value & 0x1F; break;        /* IFR register */
             default:   mmu->io[addr - 0xFF00] = value; break;        /* write to other IO registers */
         }

@@ -588,9 +588,9 @@ DEF_SET_U3_R8(0xff, 7, a) /* SET 7, A */
 
 /* ----  control/misc ---- */
 DEF_IMPLIED(0x00, nop, /* nothing */, 4)
-DEF_IMPLIED(0x76, halt, cpu->halt = 1;, 4)
 DEF_IMPLIED(0xf3, di, cpu->ime = cpu->ime_delay = 0;, 4)
 DEF_IMPLIED(0xfb, ei, cpu->ime_delay = 2;, 4)
+DEF_HALT(0x76)
 
 void decode_and_execute(CPU *cpu, uint8_t op) {
     switch (op) {

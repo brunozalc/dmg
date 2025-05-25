@@ -8,6 +8,16 @@ Want to read more about the project and my learning experience? Check out my per
 
 ---
 
+## Screenshots
+
+<img src="public/images/tetris.png" alt="Tetris Menu" width="300px" />
+
+<img src="public/images/dr_mario.png" alt="Dr. Mario Menu" width="300px" />
+
+<img src="public/images/cpu_instrs.png" alt="Blargg's cpu_instrs test" width="300px" />
+
+<img src="public/images/dmg_acid2.png" alt="dmg-acid2 test" width="300px" />
+
 ## Roadmap
 
 | Stage | Description                                                 | Status |
@@ -16,8 +26,8 @@ Want to read more about the project and my learning experience? Check out my per
 | 1     | Core emulator w/ CPU emulation and complete instruction set | ✅     |
 | 2     | PPU emulation (part 1)                                      | ✅     |
 | 3     | Bank Switching                                              | ✅     |
-| 4     | PPU emulation (part 2)                                      | ⏳     |
-| 5     | Joypad support (keyboard)                                   | ❌     |
+| 4     | PPU emulation (part 2)                                      | ✅     |
+| 5     | Joypad support (keyboard)                                   | ⏳     |
 | 6     | APU and QOL improvements                                    | ❌     |
 | 7     | Multiplatform support                                       | ❌     |
 

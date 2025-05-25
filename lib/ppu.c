@@ -53,6 +53,10 @@ void ppu_reset(PPU *ppu) {
 
     mmu_write(ppu->mmu, LY, 0);       // LY register is initialized to 0
     mmu_write(ppu->mmu, STAT, stat);  // write the initial state to STAT
+
+    /* window properties */
+    ppu->window_line_counter = 0;
+    ppu->window_was_visible  = false;
 }
 
 /* internal helper functions */
@@ -144,7 +148,7 @@ static void render_background_in_scanline(PPU *ppu) {
 
         /* get the color index from the low and high bytes */
         uint8_t color_index =
-            ((high_byte >> (7 - pixel_x)) & 0x01) | (((low_byte >> (7 - pixel_x)) & 0x01) << 1);
+            ((low_byte >> (7 - pixel_x)) & 0x01) | (((high_byte >> (7 - pixel_x)) & 0x01) << 1);
 
         /* set the color in the framebuffer */
         ppu->framebuffer[ppu->current_scanline][x] =
@@ -152,16 +156,224 @@ static void render_background_in_scanline(PPU *ppu) {
     }
 }
 
-static void render_sprites_in_scanline(PPU *ppu) {
-    /* TODO: implement sprite rendering (phase 2).
-     1. scan OAM for up to 10 sprites in this scanline
-     2. sort by x-coordinate (or OAM index)
-     3. fetch tile data for each sprite
-     4. conmbine with background data considering priority and transparency
-     5. apply sprite palette to the sprite data and write to framebuffer
-     */
+static void render_window_in_scanline(PPU *ppu) {
+    /* check if window is enabled using LCDC (bit 5) */
+    uint8_t lcdc = mmu_read(ppu->mmu, LCDC);
+    if (!(lcdc & 0x20)) {  // bit 5: window display enable
+        return;            // if window is disabled, do nothing
+    }
 
-    return;
+    /* get window position from WX and WY registers */
+    uint8_t wx = mmu_read(ppu->mmu, WX);
+    uint8_t wy = mmu_read(ppu->mmu, WY);
+
+    /* check if the current scanline is within the window y position */
+    if (ppu->current_scanline < wy) {
+        return;  // if the current scanline is above the window, do nothing
+    }
+
+    /* calculate the window x coordinate on screen */
+    int start_x = wx - 7;  // WX has a 7-pixel offset (hardware quirk)
+    if (start_x >= LCD_WIDTH) {
+        return;  // if the window x position is outside the screen, do nothing
+    }
+
+    /* if this is the first time the window is visible in this frame */
+    if (!ppu->window_was_visible && ppu->current_scanline == wy) {
+        ppu->window_line_counter = 0;
+        ppu->window_was_visible  = true;
+    }
+
+    /* calculate the window y coordinate (relative to window start) */
+    uint8_t window_y                = ppu->window_line_counter;
+
+    /* get window tile map and tile data info (similar to background) */
+    uint8_t bgp                     = mmu_read(ppu->mmu, BGP);
+    uint16_t tile_map_base_address  = (lcdc & 0x40) ? 0x9C00 : 0x9800;  // window uses bit 6
+    uint16_t tile_data_base_address = (lcdc & 0x10) ? 0x8000 : 0x9000;
+    int signed_tile_data            = (lcdc & 0x10) ? 0 : 1;  // signed or unsigned tile data
+
+    bool window_rendered            = false;  // flag to indicate if the window was rendered
+
+    /* for each pixel in the current scanline */
+    for (int lcd_x = (start_x > 0) ? start_x : 0; lcd_x < LCD_WIDTH; lcd_x++) {
+        window_rendered           = true;             // we are rendering the window
+        uint8_t window_x          = lcd_x - start_x;  // relative x position in the window
+
+        int tile_x                = (window_x >> 3);
+        int tile_y                = (window_y >> 3);
+        int pixel_x               = window_x % 8;
+        int pixel_y               = window_y % 8;
+
+        /* get the tile index from the tile map */
+        uint16_t tile_map_address = tile_map_base_address + tile_y * 32 + tile_x;
+        uint8_t tile_index        = mmu_read(ppu->mmu, tile_map_address);
+
+        /* get the tile data */
+        uint16_t tile_data_address =
+            tile_data_base_address + (signed_tile_data ? (int8_t)tile_index : tile_index) * 16;
+        uint8_t low_byte  = mmu_read(ppu->mmu, tile_data_address + pixel_y * 2);
+        uint8_t high_byte = mmu_read(ppu->mmu, tile_data_address + pixel_y * 2 + 1);
+
+        /* get the color index from the low and high bytes */
+        uint8_t color_index =
+            ((low_byte >> (7 - pixel_x)) & 0x01) | (((high_byte >> (7 - pixel_x)) & 0x01) << 1);
+
+        /* set the color in the framebuffer */
+        ppu->framebuffer[ppu->current_scanline][lcd_x] =
+            (bgp >> (color_index * 2)) & 0x03;  // get the color from BGP
+    }
+
+    /* if the window was rendered, increment the window line counter */
+    if (window_rendered) {
+        ppu->window_line_counter++;
+    }
+}
+
+static void scan_oam(PPU *ppu) {
+    /* check if sprites are enabled using LCDC (bit 1) */
+    uint8_t lcdc = mmu_read(ppu->mmu, LCDC);
+    if (!(lcdc & 0x02)) {               // bit 1: sprite display enable
+        ppu->num_scanline_sprites = 0;  // clear the count
+        return;                         // if sprites are disabled, do nothing
+    }
+
+    /* get sprite height from LCDC */
+    int sprite_height         = (lcdc & 0x04) ? 16 : 8;  // bit 2: sprite size (8x8 or 8x16)
+
+    ppu->num_scanline_sprites = 0;  // reset the sprite count for this scanline
+
+    /* scan all 40 sprites in OAM */
+    for (int i = 0; i < 40 && ppu->num_scanline_sprites < MAX_SPRITES_PER_SCANLINE; i++) {
+        /* read the sprite attributes from OAM */
+        uint16_t oam_address = OAM_START + i * 4;
+        uint8_t y            = mmu_read(ppu->mmu, oam_address);      // sprite y coordinate
+        uint8_t x            = mmu_read(ppu->mmu, oam_address + 1);  // sprite x coordinate
+        uint8_t tile         = mmu_read(ppu->mmu, oam_address + 2);  // tile index
+        uint8_t attributes   = mmu_read(ppu->mmu, oam_address + 3);  // attributes
+
+        if (y == 0 || y >= 160) {
+            continue;
+        }
+
+        int sprite_top    = y - 16;
+        int sprite_bottom = sprite_top + sprite_height;
+
+        if (ppu->current_scanline >= sprite_top && ppu->current_scanline < sprite_bottom) {
+            /* this means the sprite is within the scanline, so let's add it to our list! */
+            ppu->scanline_sprites[ppu->num_scanline_sprites].y          = y;
+            ppu->scanline_sprites[ppu->num_scanline_sprites].x          = x;
+            ppu->scanline_sprites[ppu->num_scanline_sprites].tile       = tile;
+            ppu->scanline_sprites[ppu->num_scanline_sprites].attributes = attributes;
+            ppu->scanline_sprites[ppu->num_scanline_sprites].oam_index  = i;
+            ppu->num_scanline_sprites++;
+        }
+    }
+
+    /* sort the sprite data by priority: first by x coords (asc), then by OAM index */
+    for (int i = 0; i < ppu->num_scanline_sprites - 1; i++) {
+        for (int j = i + 1; j < ppu->num_scanline_sprites; j++) {
+            if (ppu->scanline_sprites[i].x > ppu->scanline_sprites[j].x ||
+                (ppu->scanline_sprites[i].x == ppu->scanline_sprites[j].x &&
+                 ppu->scanline_sprites[i].oam_index > ppu->scanline_sprites[j].oam_index)) {
+                // swap sprites
+                sprite_t temp            = ppu->scanline_sprites[i];
+                ppu->scanline_sprites[i] = ppu->scanline_sprites[j];
+                ppu->scanline_sprites[j] = temp;
+            }
+        }
+    }
+}
+
+static void render_sprites_in_scanline(PPU *ppu) {
+    /* check if sprites are enabled using LCDC (bit 1) */
+    uint8_t lcdc = mmu_read(ppu->mmu, LCDC);
+    if (!(lcdc & 0x02)) {  // bit 1: sprite display enable
+        return;            // if sprites are disabled, do nothing
+    }
+
+    /* get sprite height */
+    int sprite_height = (lcdc & 0x04) ? 16 : 8;  // bit 2: sprite size (8x8 or 8x16)
+
+    /* get sprite palettes */
+    uint8_t obp0      = mmu_read(ppu->mmu, OBP0);  // sprite palette 0
+    uint8_t obp1      = mmu_read(ppu->mmu, OBP1);  // sprite palette 1
+
+    /* render sprites in reverse order (priority queue is FIFO) */
+    for (int i = ppu->num_scanline_sprites - 1; i >= 0; i--) {
+        sprite_t *sprite = &ppu->scanline_sprites[i];
+
+        int sprite_x     = sprite->x - 8;   // sprite x coordinate (8-pixel offset)
+        int sprite_y     = sprite->y - 16;  // sprite y coordinate (16-pixel offset)
+
+        if (sprite_x >= LCD_WIDTH || sprite_x <= -8) {
+            continue;  // if sprite is outside the screen, skip it
+        }
+
+        int sprite_row = ppu->current_scanline - sprite_y;  // row in the sprite to render
+
+        if (sprite_row < 0 || sprite_row >= sprite_height) {
+            continue;  // skip invalid sprite rows
+        }
+
+        if (sprite->attributes & 0x40) {                  // bit 6: y flip
+            sprite_row = sprite_height - 1 - sprite_row;  // flip the row if y flip is set
+        }
+
+        /* get the tile data address */
+        uint8_t tile_index = sprite->tile;
+        if (sprite_height == 16) {
+            tile_index &= 0xFE;  // for 8x16 sprites, use even tile index
+            if (sprite_row >= 8) {
+                tile_index++;     // if sprite row is in the second half, use the next tile
+                sprite_row -= 8;  // adjust the row for the second tile
+            }
+        }
+
+        if (tile_index > 255 || sprite_row > 7)
+            continue;
+
+        uint16_t tile_data_address = 0x8000 + tile_index * 16 + sprite_row * 2;
+
+        if (tile_data_address >= 0xA000) {
+            continue;  // skip invalid tile access
+        }
+
+        uint8_t low_byte  = mmu_read(ppu->mmu, tile_data_address);
+        uint8_t high_byte = mmu_read(ppu->mmu, tile_data_address + 1);
+
+        /* render each pixel in the sprite row */
+        for (int pixel_x = 0; pixel_x < 8; pixel_x++) {
+            int screen_x = sprite_x + pixel_x;  // screen x coordinate
+
+            if (screen_x < 0 || screen_x >= LCD_WIDTH) {
+                continue;  // skip pixels outside the screen
+            }
+
+            int bit_index = (sprite->attributes & 0x20) ? pixel_x : (7 - pixel_x);
+
+            uint8_t color_index =
+                ((low_byte >> bit_index) & 0x01) | (((high_byte >> bit_index) & 0x01) << 1);
+
+            if (color_index == 0) {
+                continue;  // skip transparent pixels
+            }
+
+            /* check sprite vs background prio */
+            if (sprite->attributes & 0x80) {  // bit 7: sprite priority
+                uint8_t bg_color = ppu->framebuffer[ppu->current_scanline][screen_x];
+                if (bg_color != 0) {
+                    continue;  // if background pixel is not white (0), skip this sprite pixel
+                }
+            }
+
+            uint8_t palette = (sprite->attributes & 0x10) ? obp1 : obp0;  // bit 4: sprite palette
+
+            /* set the color in the framebuffer */
+            ppu->framebuffer[ppu->current_scanline][screen_x] =
+                (palette >> (color_index * 2)) & 0x03;  // get the color from the palette
+        }
+    }
 }
 
 /* function to update the PPU state */
@@ -169,7 +381,7 @@ void ppu_step(PPU *ppu, int cycles) {
     uint8_t lcdc = mmu_read(ppu->mmu, LCDC);
 
     // if LCD is disabled
-    if (!(lcdc & 0x01)) {
+    if (!(lcdc & 0x80)) {
         if (ppu->current_scanline != 0 || ppu->mode != PPU_MODE_VBLANK) {
             // when LCD is disabled, LY is reset to 0 and PPU enters VBLANK-like state
             ppu->current_scanline = 0;
@@ -187,8 +399,8 @@ void ppu_step(PPU *ppu, int cycles) {
         case PPU_MODE_OAM_SEARCH:  // mode 2
             if (ppu->scanline_cycles >= CYCLES_OAM_SCAN) {
                 ppu->scanline_cycles -= CYCLES_OAM_SCAN;
+                scan_oam(ppu);
                 change_mode(ppu, PPU_MODE_DRAWING);
-                // TODO: perform OAM search here
             }
             break;
 
@@ -200,8 +412,8 @@ void ppu_step(PPU *ppu, int cycles) {
 
                 if (ppu->current_scanline < LCD_HEIGHT) {
                     render_background_in_scanline(ppu);
-                    // render_window_in_scanline(ppu); (TODO)
-                    // render_sprites_in_scanline(ppu); (TODO)
+                    render_window_in_scanline(ppu);
+                    render_sprites_in_scanline(ppu);
                 }
                 change_mode(ppu, PPU_MODE_HBLANK);
             }
@@ -242,6 +454,9 @@ void ppu_step(PPU *ppu, int cycles) {
                     ppu->current_scanline = 0;
                     mmu_write(ppu->mmu, LY, 0);
                     check_lyc_match(ppu);
+                    ppu->window_line_counter = 0;      // reset window line counter
+                    ppu->window_was_visible  = false;  // reset window visibility
+
                     change_mode(ppu, PPU_MODE_OAM_SEARCH);  // go to OAM search mode
                 }
             }
@@ -252,4 +467,13 @@ void ppu_step(PPU *ppu, int cycles) {
 /* function to get the current framebuffer data */
 const uint8_t (*ppu_get_framebuffer(PPU *ppu))[LCD_WIDTH] {
     return (const uint8_t (*)[LCD_WIDTH])ppu->framebuffer;
+}
+
+/* dma transfer function (used in mmu!) */
+void ppu_dma_transfer(PPU *ppu, uint8_t value) {
+    uint16_t source_address = value << 8;  // DMA transfer address (0xFF46)
+    for (int i = 0; i < 0xA0; i++) {       // transfer 160 bytes (0xA0)
+        uint8_t data = mmu_read(ppu->mmu, source_address + i);
+        mmu_write(ppu->mmu, OAM_START + i, data);  // write to OAM
+    }
 }

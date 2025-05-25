@@ -11,7 +11,7 @@
 #include "ppu.h"
 #include "timer.h"
 
-// extern FILE *cpu_log;
+extern FILE *cpu_log;
 
 struct MMU;
 struct Timer;
