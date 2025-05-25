@@ -2,6 +2,7 @@
 
 #include "cpu.h"
 #include "joyp.h"
+#include "mbc.h"
 #include "mmu.h"
 #include "ppu.h"
 #include "rom.h"
@@ -50,6 +51,8 @@ int main(int argc, char* argv[]) {
 
     Color display[WIDTH_PX * HEIGHT_PX];
 
+    uint32_t frame_counter = 0;
+
     while (!WindowShouldClose()) {
         // poll keyboard input
         joypad_update(&joypad);
@@ -59,6 +62,11 @@ int main(int argc, char* argv[]) {
 
         while (!ppu.frame_completed) {
             cpu_step(&cpu);  // run the CPU. this also ticks all other components
+        }
+
+        frame_counter++;
+        if (frame_counter >= FRAMES_PER_RTC_TICK) {
+            mbc_update_rtc(&mmu.mbc);
         }
 
         BeginDrawing();
