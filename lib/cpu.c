@@ -32,7 +32,7 @@ void cpu_init(struct CPU *cpu, struct MMU *mmu, struct Timer *timer, struct PPU 
     cpu->h     = 0x01;
     cpu->l     = 0x4D;
 
-    cpu->pc    = 0x0100;
+    cpu->pc    = 0x0000;
     cpu->sp    = 0xFFFE;
 }
 
@@ -72,6 +72,14 @@ static void interrupt_servicing_routine(CPU *cpu) {
 
     int id = __builtin_ctz(pending); /* get the index of the first set bit. for example, if pending
                                         is 0b00001000, id = 3 */
+
+    // switch (id) {
+    //     case 0: printf("V-Blank interrupt\n"); break;
+    //     case 1: printf("LCDC interrupt\n"); break;
+    //     case 2: printf("Timer interrupt\n"); break;
+    //     case 3: printf("Serial interrupt\n"); break;
+    //     case 4: printf("Joypad interrupt\n"); break;
+    // }
 
     cpu->ifr &= ~(1 << id); /* clear the interrupt flag. this acks the interrupt */
     cpu->ime       = 0;     /* disable interrupts */
@@ -123,7 +131,7 @@ void cpu_step(CPU *cpu) {
     log_cpu_state(cpu); /* log the previous CPU state */
 
     /* acknowledge pending interrupts */
-    if (cpu->ime) {
+    if (cpu->ime && !cpu->dma_flag) {
         interrupt_servicing_routine(cpu);
     }
 

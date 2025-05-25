@@ -65,6 +65,26 @@ void log_header(MMU *mmu) {
     printf("================\n\n");
 }
 
+void load_boot_rom(MMU *mmu, const char *boot_rom_path) {
+    FILE *file = fopen(boot_rom_path, "rb");
+    if (!file) {
+        fprintf(stderr, "Failed to open boot ROM: %s\n", boot_rom_path);
+        exit(EXIT_FAILURE);
+    }
+
+    size_t bytes_read = fread(mmu->boot_rom, 1, sizeof(mmu->boot_rom), file);
+    fclose(file);
+
+    if (bytes_read != sizeof(mmu->boot_rom)) {
+        fprintf(stderr, "Boot ROM size mismatch: expected %zu bytes, got %zu bytes\n",
+                sizeof(mmu->boot_rom), bytes_read);
+        exit(EXIT_FAILURE);
+    }
+
+    mmu->boot_rom_enabled = true; /* enable boot ROM */
+    printf("Boot ROM loaded successfully: %s\n", boot_rom_path);
+}
+
 void load_rom(MMU *mmu, const char *filepath) {
     FILE *file = fopen(filepath, "rb");
     assert(file && "ROM not found?");

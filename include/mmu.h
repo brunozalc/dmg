@@ -21,16 +21,19 @@
 #define LYC 0xFF45   // LY compare
 #define DMA 0xFF46   // DMA transfer register
 #define BGP 0xFF47   // background palette
+#define BOOT 0xFF50  // boot ROM enable (write 1 to disable boot ROM)
 #define IE 0xFFFF    // IE register
 
 struct CPU;
 struct Timer;
 struct PPU;
+struct Joypad;
 
 typedef struct MMU {
-    struct CPU *cpu;      // pointer to the CPU
-    struct Timer *timer;  // pointer to the timer
-    struct PPU *ppu;      // pointer to the PPU
+    struct CPU *cpu;        // pointer to the CPU
+    struct Timer *timer;    // pointer to the timer
+    struct PPU *ppu;        // pointer to the PPU
+    struct Joypad *joypad;  // pointer to the joypad
 
     /* cartridge data */
     uint8_t *cartridge_rom;       // dynamically allocated ROM data
@@ -38,6 +41,10 @@ typedef struct MMU {
     uint8_t *cartridge_ram;       // dynamically allocated external RAM
     uint32_t cartridge_ram_size;  // actual RAM size in bytes
     MBC mbc;                      // memory bank controller
+
+    /* boot rom */
+    uint8_t boot_rom[0x0100];  // 0000h - 00FFh (boot ROM, 256 bytes)
+    bool boot_rom_enabled;     // boot ROM enabled (true if boot ROM is used)
 
     /* legacy ROM for compatibility (now points to cartridge_rom) */
     uint8_t
@@ -68,7 +75,8 @@ typedef struct MMU {
 } MMU;
 
 // initialize and reset the MMU
-void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer, struct PPU *ppu);
+void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer, struct PPU *ppu,
+              struct Joypad *joypad);
 void mmu_reset(MMU *mmu);
 
 // free the memory allocated for the banking controller

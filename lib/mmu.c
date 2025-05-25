@@ -6,11 +6,14 @@
 #include <string.h>
 
 #include "cpu.h"
+#include "joyp.h"
 
-void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer, struct PPU *ppu) {
+void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer, struct PPU *ppu,
+              struct Joypad *joypad) {
     mmu->cpu                = cpu;
     mmu->timer              = timer;
     mmu->ppu                = ppu;
+    mmu->joypad             = joypad;
 
     /* initialize cartridge pointers to NULL */
     mmu->cartridge_rom      = NULL;
@@ -33,12 +36,26 @@ void mmu_reset(MMU *mmu) {
     memset(mmu->io, 0, sizeof(mmu->io));
     memset(mmu->hram, 0, sizeof(mmu->hram));
 
+    if (!mmu->boot_rom_enabled) {
+        mmu->io[0x00] = 0xCF; /* JOYP - all buttons released */
+        mmu->io[0x40] = 0x91; /* LCDC - LCD enabled */
+        mmu->io[0x41] = 0x85; /* STAT - Mode 1 (VBlank), coincidence flag on */
+        mmu->io[0x47] = 0xFC; /* BGP - background palette */
+        mmu->io[0x48] = 0xFF; /* OBP0 - object palette 0 */
+        mmu->io[0x49] = 0xFF; /* OBP1 - object palette 1 */
+    }
+
     /* reset MBC state */
     mbc_reset(&mmu->mbc);
 }
 
 uint8_t mmu_read(MMU *mmu, uint16_t addr) {
     if (addr < 0x8000) {
+        /* check if reading from boot ROM area */
+        if (mmu->boot_rom_enabled && addr < 0x0100) {
+            return mmu->boot_rom[addr]; /* read from boot ROM */
+        }
+
         /* ROM area - use MBC for bank switching */
         if (mmu->cartridge_rom) {
             return mbc_read_rom(&mmu->mbc, mmu, addr);
@@ -66,14 +83,15 @@ uint8_t mmu_read(MMU *mmu, uint16_t addr) {
         return 0xFF; /* prohibited area */
     } else if (addr < 0xFF80) {
         switch (addr) {
-            case JOYP:   return 0xFF;                          /* JOYP register (TODO) */
+            case JOYP:   return joypad_read(mmu->joypad);      /* JOYP register */
             case DIV:    return mmu->timer->div >> 8;          /* DIV register */
             case TIMA:   return mmu->timer->tima;              /* TIMA register */
             case TMA:    return mmu->timer->tma;               /* TMA register */
             case TAC:    return mmu->timer->tac;               /* TAC register */
             case IF:     return (mmu->cpu->ifr & 0x1F) | 0xE0; /* IFR register */
             case LY:     return mmu->ppu->current_scanline;    /* LY register */
-            case 0xFF4D:                                       /* undocumented read */
+            case STAT:   return (mmu->io[0x41] & 0xF8) | (mmu->ppu->mode & 0x03); /* STAT register */
+            case 0xFF4D: /* undocumented read */
             case 0xFF56: return 0xFF;
             default:     return mmu->io[addr - 0xFF00]; /* read from other IO registers */
         }
@@ -121,13 +139,19 @@ void mmu_write(MMU *mmu, uint16_t addr, uint8_t value) {
         return; /* prohibited area */
     } else if (addr < 0xFF80) {
         switch (addr) {
+            case JOYP: joypad_write(mmu->joypad, value); break;    /* JOYP register */
             case DIV:  timer_write_div(mmu->timer); break;         /* reset the DIV register */
             case TIMA: timer_write_tima(mmu->timer, value); break; /* TIMA register */
             case TMA:  timer_write_tma(mmu->timer, value); break;  /* TMA register */
             case TAC:  timer_write_tac(mmu->timer, value); break;  /* TAC register */
             case DMA:  ppu_dma_transfer(mmu->ppu, value); break;   /* DMA transfer */
-            case IF:   mmu->cpu->ifr = value & 0x1F; break;        /* IFR register */
-            default:   mmu->io[addr - 0xFF00] = value; break;        /* write to other IO registers */
+            case IF:   mmu->cpu->ifr = value & 0x1F; break;          /* IFR register */
+            case BOOT:
+                if (value & 0x01) {
+                    mmu->boot_rom_enabled = false;
+                    printf("Boot ROM disabled\n");
+                }
+            default: mmu->io[addr - 0xFF00] = value; break; /* write to other IO registers */
         }
         return;
     } else if (addr < IE) {

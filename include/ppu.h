@@ -75,14 +75,6 @@ typedef struct PPU {
                        [LCD_WIDTH];  // framebuffer for the LCD
                                      // each pixel is a 0-3 shade of gray
 
-    /* PPU registers (mirrors to MMU I/O registers) */
-    uint8_t lcdc;  // 0xFF40 (LCD control)
-    uint8_t stat;  // 0xFF41 (LCD status)
-    uint8_t scy;   // 0xFF42 (scroll Y)
-    uint8_t scx;   // 0xFF43 (scroll X)
-    uint8_t lyc;   // 0xFF45 (LYC, compare register)
-    uint8_t bgp;   // 0xFF47 (background palette)
-
     int frame_completed;  // flag to indicate if the frame (all scanlines) is
                           // completed
 
