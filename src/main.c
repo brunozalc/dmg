@@ -1,29 +1,19 @@
-#include <raylib.h>
 #include <stdio.h>
 
 #include "cpu.h"
+#include "joyp.h"
 #include "mmu.h"
 #include "ppu.h"
 #include "rom.h"
 #include "timer.h"
-
-// window information
-const int DISPLAY_SCALE = 4;
-const int HEIGHT_PX     = 144;
-const int WIDTH_PX      = 160;
-
-Color dmg_palette[4]    = {
-    RAYWHITE,
-    LIGHTGRAY,
-    DARKGRAY,
-    BLACK,
-};
+#include "utils.h"
 
 // declare the components
 MMU mmu;
 CPU cpu;
 Timer timer;
 PPU ppu;
+Joypad joypad;
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -40,11 +30,13 @@ int main(int argc, char* argv[]) {
     const char* rom_file = argv[1];
 
     // initialize and reset components
-    mmu_init(&mmu, &cpu, &timer, &ppu);
+    mmu_init(&mmu, &cpu, &timer, &ppu, &joypad);
     cpu_init(&cpu, &mmu, &timer, &ppu);
     timer_init(&timer, &cpu, &mmu);
     ppu_init(&ppu, &mmu, &cpu);
+    joypad_init(&joypad, &mmu, &cpu);
 
+    load_boot_rom(&mmu, BOOT_ROM_PATH);
     load_rom(&mmu, rom_file);
 
     // raylib init
@@ -59,6 +51,9 @@ int main(int argc, char* argv[]) {
     Color display[WIDTH_PX * HEIGHT_PX];
 
     while (!WindowShouldClose()) {
+        // poll keyboard input
+        joypad_update(&joypad);
+
         // run the CPU until a frame has been completed
         ppu.frame_completed = 0;
 
