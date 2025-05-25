@@ -30,14 +30,6 @@ void ppu_init(PPU *ppu, struct MMU *mmu, struct CPU *cpu) {
 
 /* function to reset the PPU */
 void ppu_reset(PPU *ppu) {
-    /* reset the PPU registers */
-    ppu->lcdc = 0;
-    ppu->stat = 0;
-    ppu->scy  = 0;
-    ppu->scx  = 0;
-    ppu->lyc  = 0;
-    ppu->bgp  = 0;
-
     /* reset the framebuffer */
     memset(ppu->framebuffer, 0, sizeof(ppu->framebuffer));
 
@@ -387,7 +379,7 @@ void ppu_step(PPU *ppu, int cycles) {
             ppu->current_scanline = 0;
             ppu->scanline_cycles  = 0;
             mmu_write(ppu->mmu, LY, 0);
-            ppu->mode = PPU_MODE_VBLANK;
+            ppu->mode = PPU_MODE_HBLANK;
         }
         return;  // if LCD is off, PPU is mostly idle
     }
@@ -471,9 +463,12 @@ const uint8_t (*ppu_get_framebuffer(PPU *ppu))[LCD_WIDTH] {
 
 /* dma transfer function (used in mmu!) */
 void ppu_dma_transfer(PPU *ppu, uint8_t value) {
+    ppu->cpu->dma_flag      = 1;  // set the DMA flag to indicate DMA transfer is in progress
     uint16_t source_address = value << 8;  // DMA transfer address (0xFF46)
     for (int i = 0; i < 0xA0; i++) {       // transfer 160 bytes (0xA0)
         uint8_t data = mmu_read(ppu->mmu, source_address + i);
         mmu_write(ppu->mmu, OAM_START + i, data);  // write to OAM
+        tick(ppu->cpu, 4);                         // each byte transfer takes 4 cycles
     }
+    ppu->cpu->dma_flag = 0;  // clear the DMA flag after transfer is complete
 }
