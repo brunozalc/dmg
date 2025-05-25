@@ -10,6 +10,8 @@ Want to read more about the project and my learning experience? Check out my per
 
 ## Screenshots
 
+<img src="public/videos/kirby.gif" alt="Kirby Demo" width="300px" />
+
 <img src="public/images/tetris.png" alt="Tetris Menu" width="300px" />
 
 <img src="public/images/dr_mario.png" alt="Dr. Mario Menu" width="300px" />
@@ -27,11 +29,13 @@ Want to read more about the project and my learning experience? Check out my per
 | 2     | PPU emulation (part 1)                                      | ✅     |
 | 3     | Bank Switching                                              | ✅     |
 | 4     | PPU emulation (part 2)                                      | ✅     |
-| 5     | Joypad support (keyboard)                                   | ⏳     |
-| 6     | APU and QOL improvements                                    | ❌     |
-| 7     | Multiplatform support                                       | ❌     |
+| 5     | Joypad support (keyboard)                                   | ✅     |
+| 6     | MBC2 and MBC3 support (RTC)                                 | ⏳     |
+| 7     | APU                                                         | ❌     |
+| 8     | QOL improvements and timing fixes                           | ❌     |
+| 8     | Multiplatform support                                       | ❌     |
 
-After that, the plan is to add support for modern controllers such as the Dualsense and Xbox joypads. Eventually, GBC support should be added as well.
+After that, the plan is to add support for modern joypads such as the Dualsense and Xbox controllers. Eventually, GBC support should be added as well.
 
 ---
 
