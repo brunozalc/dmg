@@ -15,9 +15,12 @@ static const char *cartridge_type_str(uint8_t t) {
         case 0x01: return "MBC1";
         case 0x02: return "MBC1+RAM";
         case 0x03: return "MBC1+RAM+BATTERY";
+        case 0x05: return "MBC2";
+        case 0x06: return "MBC2+BATTERY";
         case 0x08: return "ROM+RAM";
         case 0x09: return "ROM+RAM+BATTERY";
         case 0x0F: return "MBC3+TIMER+BATTERY";
+        case 0x10: return "MBC3+TIMER+RAM+BATTERY";
         case 0x11: return "MBC3";
         case 0x13: return "MBC3+RAM+BATTERY";
         case 0x19: return "MBC5";
