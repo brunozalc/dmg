@@ -8,17 +8,19 @@ Want to read more about the project and my learning experience? Check out my per
 
 ---
 
-## Screenshots
+## Media
 
-<img src="public/videos/kirby.gif" alt="Kirby Demo" width="300px" />
+### Games
 
-<img src="public/images/tetris.png" alt="Tetris Menu" width="300px" />
+|                         Kirby's Dream Land 2                         |                                Tetris 2                                |                                Zelda                                 |                                 Pokémon Red                                  |
+| :------------------------------------------------------------------: | :--------------------------------------------------------------------: | :------------------------------------------------------------------: | :--------------------------------------------------------------------------: |
+| <img src="public/videos/kirby.gif" alt="Kirby Demo" width="250px" /> | <img src="public/videos/tetris.gif" alt="Tetris Demo" width="250px" /> | <img src="public/videos/zelda.gif" alt="Zelda Demo" width="250px" /> | <img src="public/videos/pokemon.gif" alt="Pokémon Red Demo" width="250px" /> |
 
-<img src="public/images/dr_mario.png" alt="Dr. Mario Menu" width="300px" />
+### Test ROMs
 
-<img src="public/images/cpu_instrs.png" alt="Blargg's cpu_instrs test" width="300px" />
-
-<img src="public/images/dmg_acid2.png" alt="dmg-acid2 test" width="300px" />
+|                                  CPU Instructions Test                                  |                                DMG Acid2 Test                                |
+| :-------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------: |
+| <img src="public/images/cpu_instrs.png" alt="Blargg's cpu_instrs test" width="250px" /> | <img src="public/images/dmg_acid2.png" alt="dmg-acid2 test" width="250px" /> |
 
 ## Roadmap
 
