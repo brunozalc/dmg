@@ -32,8 +32,8 @@ Want to read more about the project and my learning experience? Check out my per
 | 3     | Bank Switching                                              | ✅     |
 | 4     | PPU emulation (part 2)                                      | ✅     |
 | 5     | Joypad support (keyboard)                                   | ✅     |
-| 6     | MBC2 and MBC3 support (RTC)                                 | ⏳     |
-| 7     | APU                                                         | ❌     |
+| 6     | MBC2 and MBC3 support (RTC)                                 | ✅     |
+| 7     | APU                                                         | ⏳     |
 | 8     | QOL improvements and timing fixes                           | ❌     |
 | 8     | Multiplatform support                                       | ❌     |
 
