@@ -9,11 +9,12 @@
 #include "joyp.h"
 
 void mmu_init(MMU *mmu, struct CPU *cpu, struct Timer *timer, struct PPU *ppu,
-              struct Joypad *joypad) {
+              struct Joypad *joypad, struct APU *apu) {
     mmu->cpu                = cpu;
     mmu->timer              = timer;
     mmu->ppu                = ppu;
     mmu->joypad             = joypad;
+    mmu->apu                = apu;
 
     /* initialize cartridge pointers to NULL */
     mmu->cartridge_rom      = NULL;
@@ -89,7 +90,28 @@ uint8_t mmu_read(MMU *mmu, uint16_t addr) {
             case TMA:    return mmu->timer->tma;               /* TMA register */
             case TAC:    return mmu->timer->tac;               /* TAC register */
             case IF:     return (mmu->cpu->ifr & 0x1F) | 0xE0; /* IFR register */
-            case LY:     return mmu->ppu->current_scanline;    /* LY register */
+            case NR10:
+            case NR11:
+            case NR12:
+            case NR13:
+            case NR14:
+            case NR21:
+            case NR22:
+            case NR23:
+            case NR24:
+            case NR30:
+            case NR31:
+            case NR32:
+            case NR33:
+            case NR34:
+            case NR41:
+            case NR42:
+            case NR43:
+            case NR44:
+            case NR50:
+            case NR51:
+            case NR52:   return apu_read(mmu->apu, addr);   /* read from APU registers */
+            case LY:     return mmu->ppu->current_scanline; /* LY register */
             case STAT:   return (mmu->io[0x41] & 0xF8) | (mmu->ppu->mode & 0x03); /* STAT register */
             case 0xFF4D: /* undocumented read */
             case 0xFF56: return 0xFF;
@@ -144,8 +166,29 @@ void mmu_write(MMU *mmu, uint16_t addr, uint8_t value) {
             case TIMA: timer_write_tima(mmu->timer, value); break; /* TIMA register */
             case TMA:  timer_write_tma(mmu->timer, value); break;  /* TMA register */
             case TAC:  timer_write_tac(mmu->timer, value); break;  /* TAC register */
-            case DMA:  ppu_dma_transfer(mmu->ppu, value); break;   /* DMA transfer */
-            case IF:   mmu->cpu->ifr = value & 0x1F; break;          /* IFR register */
+            case NR10:
+            case NR11:
+            case NR12:
+            case NR13:
+            case NR14:
+            case NR21:
+            case NR22:
+            case NR23:
+            case NR24:
+            case NR30:
+            case NR31:
+            case NR32:
+            case NR33:
+            case NR34:
+            case NR41:
+            case NR42:
+            case NR43:
+            case NR44:
+            case NR50:
+            case NR51:
+            case NR52: apu_write(mmu->apu, addr, value); break;
+            case DMA:  ppu_dma_transfer(mmu->ppu, value); break; /* DMA transfer */
+            case IF:   mmu->cpu->ifr = value & 0x1F; break;        /* IFR register */
             case BOOT:
                 if (value & 0x01) {
                     mmu->boot_rom_enabled = false;
