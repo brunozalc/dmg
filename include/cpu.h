@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "apu.h"
 #include "mmu.h"
 #include "ppu.h"
 #include "timer.h"
@@ -16,11 +17,13 @@ extern FILE *cpu_log;
 struct MMU;
 struct Timer;
 struct PPU;
+struct APU;
 
 typedef struct CPU {
     struct MMU *mmu;     /* pointer to the MMU */
     struct Timer *timer; /* pointer to the timer */
     struct PPU *ppu;     /* pointer to the PPU */
+    struct APU *apu;     /* pointer to the APU */
 
     // a: accumulator; f: flags
     union {
@@ -95,7 +98,8 @@ typedef struct CPU {
 
 void tick(CPU *cpu, int cycles);
 
-void cpu_init(CPU *cpu, struct MMU *mmu, struct Timer *timer, struct PPU *ppu);
+void cpu_init(CPU *cpu, struct MMU *mmu, struct Timer *timer, struct PPU *ppu,
+              struct APU *apu);
 void cpu_step(CPU *cpu);
 
 #endif

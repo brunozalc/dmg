@@ -15,12 +15,14 @@ FILE *cpu_log = NULL;
 - sets all regular regs to zero
 - puts pc and sp at their designated place
 */
-void cpu_init(struct CPU *cpu, struct MMU *mmu, struct Timer *timer, struct PPU *ppu) {
+void cpu_init(struct CPU *cpu, struct MMU *mmu, struct Timer *timer, struct PPU *ppu,
+              struct APU *apu) {
     *cpu       = (CPU){0};
 
     cpu->mmu   = mmu;
     cpu->timer = timer;
     cpu->ppu   = ppu;
+    cpu->apu   = apu;
 
     /* debug register init */
     cpu->a     = 0x01;
@@ -56,6 +58,7 @@ void tick(CPU *cpu, int cycles) {
     cpu->cycles += cycles;
     timer_step(cpu->timer, cycles); /* update the timer */
     ppu_step(cpu->ppu, cycles);     /* update the PPU */
+    apu_step(cpu->apu, cycles);     /* update the APU */
 }
 
 /* function to process an interrupt
