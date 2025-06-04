@@ -1,10 +1,12 @@
 #include <stdio.h>
 
+#include "apu.h"
 #include "cpu.h"
 #include "joyp.h"
 #include "mbc.h"
 #include "mmu.h"
 #include "ppu.h"
+#include "raylib.h"
 #include "rom.h"
 #include "timer.h"
 #include "utils.h"
@@ -15,8 +17,15 @@ CPU cpu;
 Timer timer;
 PPU ppu;
 Joypad joypad;
+APU apu;
 
-int main(int argc, char* argv[]) {
+void AudioInputCallback(void *buffer, unsigned int frames) {
+    float *stream = (float *)buffer;
+
+    apu_get_samples(&apu, stream, frames);
+}
+
+int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr, "usage: %s <rom_file>\n", argv[0]);
         return 1;
@@ -28,13 +37,14 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    const char* rom_file = argv[1];
+    const char *rom_file = argv[1];
 
     // initialize and reset components
-    mmu_init(&mmu, &cpu, &timer, &ppu, &joypad);
-    cpu_init(&cpu, &mmu, &timer, &ppu);
+    mmu_init(&mmu, &cpu, &timer, &ppu, &joypad, &apu);
+    cpu_init(&cpu, &mmu, &timer, &ppu, &apu);
     timer_init(&timer, &cpu, &mmu);
     ppu_init(&ppu, &mmu, &cpu);
+    apu_init(&apu, &cpu, &mmu);
     joypad_init(&joypad, &mmu, &cpu);
 
     load_boot_rom(&mmu, BOOT_ROM_PATH);
@@ -44,6 +54,15 @@ int main(int argc, char* argv[]) {
     SetTraceLogLevel(LOG_WARNING);
     InitWindow(WIDTH_PX * DISPLAY_SCALE, HEIGHT_PX * DISPLAY_SCALE, "dmg emulator");
     SetTargetFPS(60);
+
+    // initialize audio
+    InitAudioDevice();
+    SetAudioStreamBufferSizeDefault(1024);
+
+    AudioStream stream = LoadAudioStream(48000, 32, 2);
+    SetAudioStreamCallback(stream, AudioInputCallback);
+    PlayAudioStream(stream);
+    SetAudioStreamVolume(stream, 0.2f);
 
     Image image       = GenImageColor(WIDTH_PX, HEIGHT_PX, BLANK);
     Texture2D texture = LoadTextureFromImage(image);
@@ -84,10 +103,13 @@ int main(int argc, char* argv[]) {
 
         DrawTextureEx(texture, (Vector2){0, 0}, 0.0f, DISPLAY_SCALE, WHITE);
 
-        DrawFPS(10, 10);
+        DrawFPS(5, 5);
 
         EndDrawing();
     }
+
+    UnloadAudioStream(stream);
+    CloseAudioDevice();
 
     UnloadTexture(texture);
     CloseWindow();
