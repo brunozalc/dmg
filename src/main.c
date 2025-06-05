@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     AudioStream stream = LoadAudioStream(48000, 32, 2);
     SetAudioStreamCallback(stream, AudioInputCallback);
     PlayAudioStream(stream);
-    SetAudioStreamVolume(stream, 0.2f);
+    SetAudioStreamVolume(stream, 0.05f);  // restore some volume after improvements
 
     Image image       = GenImageColor(WIDTH_PX, HEIGHT_PX, BLANK);
     Texture2D texture = LoadTextureFromImage(image);
