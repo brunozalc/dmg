@@ -200,6 +200,12 @@ typedef struct APU {
     float last_output_left;   // for smooth underrun recovery
     float last_output_right;  // for smooth underrun recovery
 
+    // Channel state interpolation to reduce popping
+    float ch1_last_output;    // previous sample for smoothing
+    float ch2_last_output;    // previous sample for smoothing
+    float ch3_last_output;    // previous sample for smoothing
+    float ch4_last_output;    // previous sample for smoothing
+
     uint64_t cycles;
     double cycles_per_sample;  // number of CPU cycles per audio sample
 

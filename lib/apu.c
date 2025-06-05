@@ -14,23 +14,51 @@ static const uint8_t duty_table[4][8] = {
     {0, 1, 1, 1, 1, 1, 1, 0},  // 75%
 };
 
-static uint8_t get_ch1_output(APU *apu) {
+// removed complex anti-aliasing that was causing muffled sound
+
+static float get_ch1_output_float(APU *apu) {
     if (!apu->ch1.enabled || !apu->ch1.dac_enabled) {
-        return 0;
+        return 0.0f;
     }
-    return duty_table[apu->ch1.duty][apu->ch1.duty_position] * apu->ch1.envelope_volume;
+
+    // simple duty cycle implementation
+    uint8_t duty_output = duty_table[apu->ch1.duty][apu->ch1.duty_position];
+    float output        = duty_output ? 1.0f : -1.0f;
+    
+    // frequency-dependent amplitude reduction for high frequencies
+    float frequency_hz = 131072.0f / (2048 - apu->ch1.frequency);
+    float amplitude_scale = 1.0f;
+    if (frequency_hz > 1500.0f) {
+        // gently reduce amplitude for very high frequencies only
+        amplitude_scale = 1.0f - fminf(0.2f, (frequency_hz - 1500.0f) / 4000.0f);
+    }
+
+    return output * apu->ch1.envelope_volume / 15.0f * amplitude_scale;
 }
 
-static uint8_t get_ch2_output(APU *apu) {
+static float get_ch2_output_float(APU *apu) {
     if (!apu->ch2.enabled || !apu->ch2.dac_enabled) {
-        return 0;
+        return 0.0f;
     }
-    return duty_table[apu->ch2.duty][apu->ch2.duty_position] * apu->ch2.envelope_volume;
+
+    // simple duty cycle implementation
+    uint8_t duty_output = duty_table[apu->ch2.duty][apu->ch2.duty_position];
+    float output        = duty_output ? 1.0f : -1.0f;
+    
+    // frequency-dependent amplitude reduction for high frequencies
+    float frequency_hz = 131072.0f / (2048 - apu->ch2.frequency);
+    float amplitude_scale = 1.0f;
+    if (frequency_hz > 1500.0f) {
+        // gently reduce amplitude for very high frequencies only
+        amplitude_scale = 1.0f - fminf(0.2f, (frequency_hz - 1500.0f) / 4000.0f);
+    }
+
+    return output * apu->ch2.envelope_volume / 15.0f * amplitude_scale;
 }
 
-static uint8_t get_ch3_output(APU *apu) {
+static float get_ch3_output_float(APU *apu) {
     if (!apu->ch3.enabled || !apu->ch3.dac_enabled) {
-        return 0;
+        return 0.0f;
     }
 
     uint8_t sample = apu->ch3.wave_ram[apu->ch3.wave_position >> 1];
@@ -41,23 +69,26 @@ static uint8_t get_ch3_output(APU *apu) {
         sample >>= 4;  // get high nibble
     }
 
+    float output = (float)sample / 15.0f * 2.0f - 1.0f;  // convert to -1.0 to 1.0
+
     switch (apu->ch3.output_level) {
-        case 0:  return 0;            // mute
-        case 1:  return sample;       // 100%
-        case 2:  return sample >> 1;  // 50%
-        case 3:  return sample >> 2;  // 25%
-        default: return 0;
+        case 0:  return 0.0f;            // mute
+        case 1:  return output;          // 100%
+        case 2:  return output * 0.5f;   // 50%
+        case 3:  return output * 0.25f;  // 25%
+        default: return 0.0f;
     }
 }
 
-static uint8_t get_ch4_output(APU *apu) {
+static float get_ch4_output_float(APU *apu) {
     if (!apu->ch4.enabled || !apu->ch4.dac_enabled) {
-        return 0;
+        return 0.0f;
     }
 
     // LFSR output is inverted
     uint8_t lfsr_output = (~apu->ch4.lfsr) & 0x01;  // get the least significant bit
-    return lfsr_output * apu->ch4.envelope_volume;
+    float output        = lfsr_output ? 1.0f : -1.0f;
+    return output * apu->ch4.envelope_volume / 15.0f;
 }
 
 static void clock_length_counters(APU *apu) {
@@ -309,7 +340,14 @@ static void update_channel_timers(APU *apu, int cycles) {
     }
 }
 
-static inline float to_signed(int raw) { return (float)raw - 7.5f; }
+static float soft_clip(float x) {
+    // gentle soft clipping to prevent harsh distortion
+    if (x > 0.9f)
+        return 0.9f + 0.1f * tanhf((x - 0.9f) * 10.0f);
+    if (x < -0.9f)
+        return -0.9f + 0.1f * tanhf((x + 0.9f) * 10.0f);
+    return x;
+}
 
 static void update_channel_fades(APU *apu) {
     // ch1
@@ -344,10 +382,30 @@ static void update_channel_fades(APU *apu) {
 static void generate_sample(APU *apu) {
     update_channel_fades(apu);
 
-    float ch1  = to_signed(get_ch1_output(apu)) * apu->ch1_fade;
-    float ch2  = to_signed(get_ch2_output(apu)) * apu->ch2_fade;
-    float ch3  = to_signed(get_ch3_output(apu)) * apu->ch3_fade;
-    float ch4  = to_signed(get_ch4_output(apu)) * apu->ch4_fade;
+    // get raw channel outputs
+    float ch1_raw             = get_ch1_output_float(apu);
+    float ch2_raw             = get_ch2_output_float(apu);
+    float ch3_raw             = get_ch3_output_float(apu);
+    float ch4_raw             = get_ch4_output_float(apu);
+
+    // apply gentle interpolation to reduce sudden changes
+    const float interp_factor = 0.96f; // very light smoothing to avoid muffling
+    ch1_raw              = apu->ch1_last_output * (1.0f - interp_factor) + ch1_raw * interp_factor;
+    ch2_raw              = apu->ch2_last_output * (1.0f - interp_factor) + ch2_raw * interp_factor;
+    ch3_raw              = apu->ch3_last_output * (1.0f - interp_factor) + ch3_raw * interp_factor;
+    ch4_raw              = apu->ch4_last_output * (1.0f - interp_factor) + ch4_raw * interp_factor;
+
+    // store for next sample
+    apu->ch1_last_output = ch1_raw;
+    apu->ch2_last_output = ch2_raw;
+    apu->ch3_last_output = ch3_raw;
+    apu->ch4_last_output = ch4_raw;
+
+    // apply channel fades
+    float ch1            = ch1_raw * apu->ch1_fade;
+    float ch2            = ch2_raw * apu->ch2_fade;
+    float ch3            = ch3_raw * apu->ch3_fade;
+    float ch4            = ch4_raw * apu->ch4_fade;
 
     float left = 0.0f, right = 0.0f;
 
@@ -372,9 +430,14 @@ static void generate_sample(APU *apu) {
     if (apu->channel_panning & 0x08)
         right += ch4;
 
-    // apply master volume
-    left *= (apu->master_volume_left + 1) / 8.0f;
-    right *= (apu->master_volume_right + 1) / 8.0f;
+    // apply master volume with smoother curve
+    float vol_left  = (apu->master_volume_left + 1) / 8.0f;
+    float vol_right = (apu->master_volume_right + 1) / 8.0f;
+    // apply slight curve to master volume for more natural feel
+    vol_left        = vol_left * vol_left;
+    vol_right       = vol_right * vol_right;
+    left *= vol_left;
+    right *= vol_right;
 
     left *= apu->master_fade;
     right *= apu->master_fade;
@@ -394,19 +457,20 @@ static void generate_sample(APU *apu) {
         }
     }
 
-    // normalize between -1.0f and 1.0f
-    left /= 30.0f;  // max possible value is 30.0f (4 channels * 7.5f)
-    right /= 30.0f;
+    // normalize with improved scaling (channels now output -1.0 to 1.0)
+    left /= 4.0f;  // 4 channels max
+    right /= 4.0f;
 
-    const float lp_alpha = 0.25f;  // Adjust this: lower = more smoothing
+    // very light low-pass filter to reduce only the harshest edges
+    const float lp_alpha = 0.5f;  // minimal smoothing
     left                 = apu->lp_left + lp_alpha * (left - apu->lp_left);
     right                = apu->lp_right + lp_alpha * (right - apu->lp_right);
     apu->lp_left         = left;
     apu->lp_right        = right;
 
-    // clamp values to prevent clipping
-    left                 = fmaxf(-1.0f, fminf(1.0f, left));
-    right                = fmaxf(-1.0f, fminf(1.0f, right));
+    // soft clipping instead of hard limiting
+    left                 = soft_clip(left);
+    right                = soft_clip(right);
 
     // high-pass filter to remove DC offset
     float out_l = apu->hp_alpha * (apu->hp_last_output_left + left - apu->hp_last_input_left);
@@ -465,11 +529,11 @@ void apu_init(APU *apu, struct CPU *cpu, struct MMU *mmu) {
         exit(EXIT_FAILURE);
     }
 
-    apu->fade_rate        = 0.0002f;
-    apu->master_fade_rate = 0.0001f;
+    apu->fade_rate        = 0.001f;   // much faster channel fades
+    apu->master_fade_rate = 0.0005f;  // faster master fade
 
-    // initialize high-pass filter with 30Hz cutoff
-    init_highpass_filter(apu, 20.0f);
+    // initialize high-pass filter with moderate cutoff
+    init_highpass_filter(apu, 15.0f);
 
     apu_reset(apu);
 }
@@ -519,6 +583,12 @@ void apu_reset(APU *apu) {
     // for buffer underrun handling
     apu->last_output_left        = 0.0f;
     apu->last_output_right       = 0.0f;
+
+    // reset channel interpolation state
+    apu->ch1_last_output         = 0.0f;
+    apu->ch2_last_output         = 0.0f;
+    apu->ch3_last_output         = 0.0f;
+    apu->ch4_last_output         = 0.0f;
 
     apu->cycles                  = 0;
     apu->cycles_per_sample       = 4194304.0 / 48000.0;
