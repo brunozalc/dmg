@@ -2,7 +2,7 @@
 
 A GameBoy (DMG) emulator written in C.
 
-The final goal is to have a fully functional program that can faithfully emulate the Gameboy hardware and its games, specially commercial titles. The emulator is currently in development.
+The final goal is to have a fully functional program that can faithfully emulate the Gameboy hardware and its games, specially commercial titles. The emulator is currently stable, and is able to run the most popular games.
 
 Want to read more about the project and my learning experience? Check out my personal website and (WIP) blog: [zalcberg.me](https://zalcberg.me).
 
@@ -33,9 +33,8 @@ Want to read more about the project and my learning experience? Check out my per
 | 4     | PPU emulation (part 2)                                      | ✅     |
 | 5     | Joypad support (keyboard)                                   | ✅     |
 | 6     | MBC2 and MBC3 support (RTC)                                 | ✅     |
-| 7     | APU                                                         | ⏳     |
-| 8     | QOL improvements and timing fixes                           | ❌     |
-| 8     | Multiplatform support                                       | ❌     |
+| 7     | APU                                                         | ✅     |
+| 8     | QOL and timing improvements                                 | ❌     |
 
 After that, the plan is to add support for modern joypads such as the Dualsense and Xbox controllers. Eventually, GBC support should be added as well.
 
