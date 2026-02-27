@@ -115,7 +115,11 @@ uint8_t mmu_read(MMU *mmu, uint16_t addr) {
             case STAT:   return (mmu->io[0x41] & 0xF8) | (mmu->ppu->mode & 0x03); /* STAT register */
             case 0xFF4D: /* undocumented read */
             case 0xFF56: return 0xFF;
-            default:     return mmu->io[addr - 0xFF00]; /* read from other IO registers */
+            default:
+                if (addr >= 0xFF30 && addr <= 0xFF3F) {
+                    return apu_read(mmu->apu, addr);  /* wave RAM */
+                }
+                return mmu->io[addr - 0xFF00]; /* read from other IO registers */
         }
     } else if (addr < IE) {
         return mmu->hram[addr - 0xFF80]; /* read from HRAM */
@@ -194,7 +198,13 @@ void mmu_write(MMU *mmu, uint16_t addr, uint8_t value) {
                     mmu->boot_rom_enabled = false;
                     printf("Boot ROM disabled\n");
                 }
-            default: mmu->io[addr - 0xFF00] = value; break; /* write to other IO registers */
+            default:
+                if (addr >= 0xFF30 && addr <= 0xFF3F) {
+                    apu_write(mmu->apu, addr, value);  /* wave RAM */
+                } else {
+                    mmu->io[addr - 0xFF00] = value; /* write to other IO registers */
+                }
+                break;
         }
         return;
     } else if (addr < IE) {

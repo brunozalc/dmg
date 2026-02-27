@@ -207,7 +207,7 @@ static int get_noise_period(APU *apu) {
 }
 
 static void trigger_ch1(APU *apu) {
-    apu->ch1.enabled = apu->ch1.dac_enabled = true;
+    apu->ch1.enabled = apu->ch1.dac_enabled;
 
     if (apu->ch1.length_counter == 0) {
         apu->ch1.length_counter = 64;
@@ -227,7 +227,7 @@ static void trigger_ch1(APU *apu) {
 }
 
 static void trigger_ch2(APU *apu) {
-    apu->ch2.enabled = apu->ch2.dac_enabled = true;
+    apu->ch2.enabled = apu->ch2.dac_enabled;
 
     if (apu->ch2.length_counter == 0) {
         apu->ch2.length_counter = 64;
@@ -239,7 +239,7 @@ static void trigger_ch2(APU *apu) {
 }
 
 static void trigger_ch3(APU *apu) {
-    apu->ch3.enabled = apu->ch3.dac_enabled = true;
+    apu->ch3.enabled = apu->ch3.dac_enabled;
 
     if (apu->ch3.length_counter == 0) {
         apu->ch3.length_counter = 255;
@@ -250,7 +250,7 @@ static void trigger_ch3(APU *apu) {
 }
 
 static void trigger_ch4(APU *apu) {
-    apu->ch4.enabled = apu->ch4.dac_enabled = true;
+    apu->ch4.enabled = apu->ch4.dac_enabled;
 
     if (apu->ch4.length_counter == 0) {
         apu->ch4.length_counter = 64;
@@ -779,12 +779,62 @@ void apu_write(APU *apu, uint16_t addr, uint8_t value) {
 }
 
 uint8_t apu_read(APU *apu, uint16_t addr) {
+    /* wave RAM is always readable */
+    if (addr >= 0xFF30 && addr <= 0xFF3F) {
+        return apu->ch3.wave_ram[addr - 0xFF30];
+    }
+
     switch (addr) {
+        /* CH1 registers */
+        case NR10:
+            return ((apu->ch1.sweep_period << 4) |
+                    (apu->ch1.sweep_negate << 3) |
+                    apu->ch1.sweep_shift) | 0x80;
+        case NR11: return (apu->ch1.duty << 6) | 0x3F;
+        case NR12:
+            return (apu->ch1.enevelope_init_volume << 4) |
+                   (apu->ch1.envelope_direction << 3) |
+                   apu->ch1.envelope_period;
+        case NR13: return 0xFF;  // write-only
+        case NR14: return (apu->ch1.length_enabled ? 0x40 : 0x00) | 0xBF;
+
+        /* CH2 registers */
+        case NR21: return (apu->ch2.duty << 6) | 0x3F;
+        case NR22:
+            return (apu->ch2.enevelope_init_volume << 4) |
+                   (apu->ch2.envelope_direction << 3) |
+                   apu->ch2.envelope_period;
+        case NR23: return 0xFF;  // write-only
+        case NR24: return (apu->ch2.length_enabled ? 0x40 : 0x00) | 0xBF;
+
+        /* CH3 registers */
+        case NR30: return (apu->ch3.dac_enabled ? 0x80 : 0x00) | 0x7F;
+        case NR31: return 0xFF;  // write-only
+        case NR32: return (apu->ch3.output_level << 5) | 0x9F;
+        case NR33: return 0xFF;  // write-only
+        case NR34: return (apu->ch3.length_enabled ? 0x40 : 0x00) | 0xBF;
+
+        /* CH4 registers */
+        case NR41: return 0xFF;  // write-only
+        case NR42:
+            return (apu->ch4.enevelope_init_volume << 4) |
+                   (apu->ch4.envelope_direction << 3) |
+                   apu->ch4.envelope_period;
+        case NR43:
+            return (apu->ch4.clock_shift << 4) |
+                   (apu->ch4.width_mode << 3) |
+                   apu->ch4.clock_divider;
+        case NR44: return (apu->ch4.length_enabled ? 0x40 : 0x00) | 0xBF;
+
+        /* master control registers */
+        case NR50:
+            return (apu->master_volume_left << 4) | apu->master_volume_right;
+        case NR51: return apu->channel_panning;
         case NR52:
             return (apu->sound_enabled ? 0x80 : 0x00) | (apu->ch1.enabled ? 0x01 : 0x00) |
                    (apu->ch2.enabled ? 0x02 : 0x00) | (apu->ch3.enabled ? 0x04 : 0x00) |
-                   (apu->ch4.enabled ? 0x08 : 0x00) | 0x70;  // bits 4-6 are always 1
+                   (apu->ch4.enabled ? 0x08 : 0x00) | 0x70;  // bits 4-6 always 1
 
-        default: return 0xFF;  // undefined behavior
+        default: return 0xFF;  // unmapped APU address
     }
 }
