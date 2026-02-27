@@ -1,12 +1,33 @@
 #include "apu.h"
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "cpu.h"
 #include "mmu.h"
 
-/* helper functions */
+/* ============================================================
+ * Constants
+ * ============================================================ */
+#define APU_BUFFER_FRAMES    8192                          // stereo frames in ring buffer
+#define APU_BUFFER_CAPACITY  (APU_BUFFER_FRAMES * 2)       // total floats (L+R per frame)
+
+#define CPU_CLOCK_HZ  4194304.0
+#define SAMPLE_RATE   48000.0
+
+/* Low-pass filter cutoff (Hz) — emulates DMG analog output characteristics */
+#define LP_CUTOFF_HZ  16000.0f
+
+/* High-pass filter charge factor base (PanDocs DMG value).
+   See: https://gbdev.io/pandocs/Audio_details.html */
+#define HP_CHARGE_BASE  0.999958f
+
+/* ============================================================
+ * Duty table
+ * ============================================================ */
 static const uint8_t duty_table[4][8] = {
     {0, 0, 0, 0, 0, 0, 0, 1},  // 12.5%
     {1, 0, 0, 0, 0, 0, 0, 1},  // 25%
@@ -14,26 +35,18 @@ static const uint8_t duty_table[4][8] = {
     {0, 1, 1, 1, 1, 1, 1, 0},  // 75%
 };
 
-// removed complex anti-aliasing that was causing muffled sound
+/* ============================================================
+ * Channel output functions — raw DAC output in [-1.0, 1.0]
+ * ============================================================ */
 
 static float get_ch1_output_float(APU *apu) {
     if (!apu->ch1.enabled || !apu->ch1.dac_enabled) {
         return 0.0f;
     }
 
-    // simple duty cycle implementation
     uint8_t duty_output = duty_table[apu->ch1.duty][apu->ch1.duty_position];
     float output        = duty_output ? 1.0f : -1.0f;
-    
-    // frequency-dependent amplitude reduction for high frequencies
-    float frequency_hz = 131072.0f / (2048 - apu->ch1.frequency);
-    float amplitude_scale = 1.0f;
-    if (frequency_hz > 1500.0f) {
-        // gently reduce amplitude for very high frequencies only
-        amplitude_scale = 1.0f - fminf(0.2f, (frequency_hz - 1500.0f) / 4000.0f);
-    }
-
-    return output * apu->ch1.envelope_volume / 15.0f * amplitude_scale;
+    return output * apu->ch1.envelope_volume / 15.0f;
 }
 
 static float get_ch2_output_float(APU *apu) {
@@ -41,19 +54,9 @@ static float get_ch2_output_float(APU *apu) {
         return 0.0f;
     }
 
-    // simple duty cycle implementation
     uint8_t duty_output = duty_table[apu->ch2.duty][apu->ch2.duty_position];
     float output        = duty_output ? 1.0f : -1.0f;
-    
-    // frequency-dependent amplitude reduction for high frequencies
-    float frequency_hz = 131072.0f / (2048 - apu->ch2.frequency);
-    float amplitude_scale = 1.0f;
-    if (frequency_hz > 1500.0f) {
-        // gently reduce amplitude for very high frequencies only
-        amplitude_scale = 1.0f - fminf(0.2f, (frequency_hz - 1500.0f) / 4000.0f);
-    }
-
-    return output * apu->ch2.envelope_volume / 15.0f * amplitude_scale;
+    return output * apu->ch2.envelope_volume / 15.0f;
 }
 
 static float get_ch3_output_float(APU *apu) {
@@ -90,6 +93,10 @@ static float get_ch4_output_float(APU *apu) {
     float output        = lfsr_output ? 1.0f : -1.0f;
     return output * apu->ch4.envelope_volume / 15.0f;
 }
+
+/* ============================================================
+ * Frame sequencer — length counters, envelope, sweep
+ * ============================================================ */
 
 static void clock_length_counters(APU *apu) {
     if (apu->ch1.length_enabled && apu->ch1.length_counter > 0) {
@@ -200,11 +207,97 @@ static void clock_sweep(APU *apu) {
     }
 }
 
+static void frame_sequencer_step(APU *apu) {
+    // clock length counters on steps 0, 2, 4, 6
+    // clock envelope on step 7
+    // clock sweep on steps 2 and 6
+
+    switch (apu->frame_sequencer_step) {
+        case 0:
+        case 4: clock_length_counters(apu); break;
+        case 2:
+        case 6:
+            clock_length_counters(apu);
+            clock_sweep(apu);
+            break;
+        case 7: clock_envelope(apu); break;
+    }
+
+    apu->frame_sequencer_step = (apu->frame_sequencer_step + 1) & 7;
+}
+
+/* ============================================================
+ * Channel timer updates
+ * ============================================================ */
+
 static int get_noise_period(APU *apu) {
     static const int divisors[8] = {4, 8, 16, 24, 32, 40, 48, 56};
     int divider_index            = apu->ch4.clock_divider & 0x07;  // mask to get the last 3 bits
     return divisors[divider_index] << apu->ch4.clock_shift;
 }
+
+static void update_channel_timers(APU *apu, int cycles) {
+    if (apu->ch1.enabled) {
+        int period = (2048 - apu->ch1.frequency) * 4;
+        int timer  = apu->ch1.frequency_timer - cycles;
+
+        if (timer <= 0) {
+            int ticks = 1 + (-timer) / period; /* how many steps we missed */
+            timer += ticks * period;           /* catch up in one go      */
+            apu->ch1.duty_position = (apu->ch1.duty_position + ticks) & 7;
+        }
+        apu->ch1.frequency_timer = timer;
+    }
+
+    if (apu->ch2.enabled) {
+        int period = (2048 - apu->ch2.frequency) * 4;
+        int timer  = apu->ch2.frequency_timer - cycles;
+
+        if (timer <= 0) {
+            int ticks = 1 + (-timer) / period;
+            timer += ticks * period;
+            apu->ch2.duty_position = (apu->ch2.duty_position + ticks) & 7;
+        }
+        apu->ch2.frequency_timer = timer;
+    }
+
+    if (apu->ch3.enabled) {
+        int period = (2048 - apu->ch3.frequency) * 2; /* wave is x1/2 */
+        int timer  = apu->ch3.frequency_timer - cycles;
+
+        if (timer <= 0) {
+            int ticks = 1 + (-timer) / period;
+            timer += ticks * period;
+            apu->ch3.wave_position = (apu->ch3.wave_position + ticks) & 31;
+        }
+        apu->ch3.frequency_timer = timer;
+    }
+
+    if (apu->ch4.enabled) {
+        int period = get_noise_period(apu); /* 4 … 895 CPU cycles */
+        int timer  = apu->ch4.frequency_timer - cycles;
+
+        if (timer <= 0) {
+            int steps = 1 + (-timer) / period;
+            timer += steps * period;
+
+            /* advance the LFSR exactly <steps> times */
+            uint16_t lfsr = apu->ch4.lfsr;
+            for (int s = 0; s < steps; ++s) {
+                uint8_t bit = (lfsr ^ (lfsr >> 1)) & 1;
+                lfsr        = (lfsr >> 1) | (bit << 14); /* 15-bit default */
+                if (apu->ch4.width_mode)                 /* NR43 bit 3 = 1 → 7-bit mode */
+                    lfsr = (lfsr & ~0x40) | (bit << 6);
+            }
+            apu->ch4.lfsr = lfsr;
+        }
+        apu->ch4.frequency_timer = timer;
+    }
+}
+
+/* ============================================================
+ * Channel trigger functions
+ * ============================================================ */
 
 static void trigger_ch1(APU *apu) {
     apu->ch1.enabled = apu->ch1.dac_enabled;
@@ -262,278 +355,125 @@ static void trigger_ch4(APU *apu) {
     apu->ch4.lfsr            = 0x7FFF;  // reset LFSR to a known state
 }
 
-static void frame_sequencer_step(APU *apu) {
-    // clock length counters on steps 0, 2, 4, 6
-    // clock envelope on step 7
-    // clock sweep on steps 2 and 6
-
-    switch (apu->frame_sequencer_step) {
-        case 0:
-        case 4: clock_length_counters(apu); break;
-        case 2:
-        case 6:
-            clock_length_counters(apu);
-            clock_sweep(apu);
-            break;
-        case 7: clock_envelope(apu); break;
-    }
-
-    apu->frame_sequencer_step = (apu->frame_sequencer_step + 1) & 7;
-}
-
-static void update_channel_timers(APU *apu, int cycles) {
-    if (apu->ch1.enabled) {
-        int period = (2048 - apu->ch1.frequency) * 4;
-        int timer  = apu->ch1.frequency_timer - cycles;
-
-        if (timer <= 0) {
-            int ticks = 1 + (-timer) / period; /* how many steps we missed */
-            timer += ticks * period;           /* catch up in one go      */
-            apu->ch1.duty_position = (apu->ch1.duty_position + ticks) & 7;
-        }
-        apu->ch1.frequency_timer = timer;
-    }
-
-    if (apu->ch2.enabled) {
-        int period = (2048 - apu->ch2.frequency) * 4;
-        int timer  = apu->ch2.frequency_timer - cycles;
-
-        if (timer <= 0) {
-            int ticks = 1 + (-timer) / period;
-            timer += ticks * period;
-            apu->ch2.duty_position = (apu->ch2.duty_position + ticks) & 7;
-        }
-        apu->ch2.frequency_timer = timer;
-    }
-
-    if (apu->ch3.enabled) {
-        int period = (2048 - apu->ch3.frequency) * 2; /* wave is x1/2 */
-        int timer  = apu->ch3.frequency_timer - cycles;
-
-        if (timer <= 0) {
-            int ticks = 1 + (-timer) / period;
-            timer += ticks * period;
-            apu->ch3.wave_position = (apu->ch3.wave_position + ticks) & 31;
-        }
-        apu->ch3.frequency_timer = timer;
-    }
-
-    if (apu->ch4.enabled) {
-        int period = get_noise_period(apu); /* 4 … 895 CPU cycles */
-        int timer  = apu->ch4.frequency_timer - cycles;
-
-        if (timer <= 0) {
-            int steps = 1 + (-timer) / period;
-            timer += steps * period;
-
-            /* advance the 15-bit or 7-bit LFSR exactly <steps> times */
-            uint16_t lfsr = apu->ch4.lfsr;
-            for (int s = 0; s < steps; ++s) {
-                uint8_t bit = (lfsr ^ (lfsr >> 1)) & 1;
-                lfsr        = (lfsr >> 1) | (bit << 14); /* 15-bit variant */
-                if (!apu->ch4.width_mode)                /* 7-bit mode */
-                    lfsr = (lfsr & ~0x40) | (bit << 6);
-            }
-            apu->ch4.lfsr = lfsr;
-        }
-        apu->ch4.frequency_timer = timer;
-    }
-}
-
-static float soft_clip(float x) {
-    // gentle soft clipping to prevent harsh distortion
-    if (x > 0.9f)
-        return 0.9f + 0.1f * tanhf((x - 0.9f) * 10.0f);
-    if (x < -0.9f)
-        return -0.9f + 0.1f * tanhf((x + 0.9f) * 10.0f);
-    return x;
-}
-
-static void update_channel_fades(APU *apu) {
-    // ch1
-    if (apu->ch1.enabled && apu->ch1.dac_enabled) {
-        apu->ch1_fade = fminf(1.0f, apu->ch1_fade + apu->fade_rate);
-    } else {
-        apu->ch1_fade = fmaxf(0.0f, apu->ch1_fade - apu->fade_rate);
-    }
-
-    // ch2
-    if (apu->ch2.enabled && apu->ch2.dac_enabled) {
-        apu->ch2_fade = fminf(1.0f, apu->ch2_fade + apu->fade_rate);
-    } else {
-        apu->ch2_fade = fmaxf(0.0f, apu->ch2_fade - apu->fade_rate);
-    }
-
-    // ch3
-    if (apu->ch3.enabled && apu->ch3.dac_enabled) {
-        apu->ch3_fade = fminf(1.0f, apu->ch3_fade + apu->fade_rate);
-    } else {
-        apu->ch3_fade = fmaxf(0.0f, apu->ch3_fade - apu->fade_rate);
-    }
-
-    // ch4
-    if (apu->ch4.enabled && apu->ch4.dac_enabled) {
-        apu->ch4_fade = fminf(1.0f, apu->ch4_fade + apu->fade_rate);
-    } else {
-        apu->ch4_fade = fmaxf(0.0f, apu->ch4_fade - apu->fade_rate);
-    }
-}
+/* ============================================================
+ * Sample generation — clean signal chain:
+ *   channel DAC → panning/mix → master volume → normalize →
+ *   low-pass (analog output) → high-pass (DC removal) → ring buffer
+ * ============================================================ */
 
 static void generate_sample(APU *apu) {
-    update_channel_fades(apu);
-
-    // get raw channel outputs
-    float ch1_raw             = get_ch1_output_float(apu);
-    float ch2_raw             = get_ch2_output_float(apu);
-    float ch3_raw             = get_ch3_output_float(apu);
-    float ch4_raw             = get_ch4_output_float(apu);
-
-    // apply gentle interpolation to reduce sudden changes
-    const float interp_factor = 0.96f; // very light smoothing to avoid muffling
-    ch1_raw              = apu->ch1_last_output * (1.0f - interp_factor) + ch1_raw * interp_factor;
-    ch2_raw              = apu->ch2_last_output * (1.0f - interp_factor) + ch2_raw * interp_factor;
-    ch3_raw              = apu->ch3_last_output * (1.0f - interp_factor) + ch3_raw * interp_factor;
-    ch4_raw              = apu->ch4_last_output * (1.0f - interp_factor) + ch4_raw * interp_factor;
-
-    // store for next sample
-    apu->ch1_last_output = ch1_raw;
-    apu->ch2_last_output = ch2_raw;
-    apu->ch3_last_output = ch3_raw;
-    apu->ch4_last_output = ch4_raw;
-
-    // apply channel fades
-    float ch1            = ch1_raw * apu->ch1_fade;
-    float ch2            = ch2_raw * apu->ch2_fade;
-    float ch3            = ch3_raw * apu->ch3_fade;
-    float ch4            = ch4_raw * apu->ch4_fade;
+    // raw channel outputs (already scaled by envelope_volume / 15)
+    float ch1 = get_ch1_output_float(apu);
+    float ch2 = get_ch2_output_float(apu);
+    float ch3 = get_ch3_output_float(apu);
+    float ch4 = get_ch4_output_float(apu);
 
     float left = 0.0f, right = 0.0f;
 
-    // apply panning and volume
-    if (apu->channel_panning & 0x10)
-        left += ch1;
-    if (apu->channel_panning & 0x01)
-        right += ch1;
+    // panning (NR51)
+    if (apu->channel_panning & 0x10) left  += ch1;
+    if (apu->channel_panning & 0x01) right += ch1;
 
-    if (apu->channel_panning & 0x20)
-        left += ch2;
-    if (apu->channel_panning & 0x02)
-        right += ch2;
+    if (apu->channel_panning & 0x20) left  += ch2;
+    if (apu->channel_panning & 0x02) right += ch2;
 
-    if (apu->channel_panning & 0x40)
-        left += ch3;
-    if (apu->channel_panning & 0x04)
-        right += ch3;
+    if (apu->channel_panning & 0x40) left  += ch3;
+    if (apu->channel_panning & 0x04) right += ch3;
 
-    if (apu->channel_panning & 0x80)
-        left += ch4;
-    if (apu->channel_panning & 0x08)
-        right += ch4;
+    if (apu->channel_panning & 0x80) left  += ch4;
+    if (apu->channel_panning & 0x08) right += ch4;
 
-    // apply master volume with smoother curve
+    // master volume — linear scaling as per hardware
     float vol_left  = (apu->master_volume_left + 1) / 8.0f;
     float vol_right = (apu->master_volume_right + 1) / 8.0f;
-    // apply slight curve to master volume for more natural feel
-    vol_left        = vol_left * vol_left;
-    vol_right       = vol_right * vol_right;
-    left *= vol_left;
+    left  *= vol_left;
     right *= vol_right;
 
-    left *= apu->master_fade;
-    right *= apu->master_fade;
-
-    if (apu->sound_disabling) {
-        apu->master_fade -= apu->master_fade_rate;
-        if (apu->master_fade <= 0.0f) {
-            apu->master_fade     = 0.0f;
-            apu->sound_disabling = false;
-            apu->sound_enabled   = false;
-        }
-    } else if (apu->sound_enabling) {
-        apu->master_fade += apu->master_fade_rate;
-        if (apu->master_fade >= 1.0f) {
-            apu->master_fade    = 1.0f;
-            apu->sound_enabling = false;
-        }
-    }
-
-    // normalize with improved scaling (channels now output -1.0 to 1.0)
-    left /= 4.0f;  // 4 channels max
+    // normalize (4 channels max per side)
+    left  /= 4.0f;
     right /= 4.0f;
 
-    // very light low-pass filter to reduce only the harshest edges
-    const float lp_alpha = 0.5f;  // minimal smoothing
-    left                 = apu->lp_left + lp_alpha * (left - apu->lp_left);
-    right                = apu->lp_right + lp_alpha * (right - apu->lp_right);
-    apu->lp_left         = left;
-    apu->lp_right        = right;
+    // low-pass filter — first-order IIR emulating DMG analog output (~16 kHz)
+    apu->lp_left  += apu->lp_alpha * (left - apu->lp_left);
+    apu->lp_right += apu->lp_alpha * (right - apu->lp_right);
+    left  = apu->lp_left;
+    right = apu->lp_right;
 
-    // soft clipping instead of hard limiting
-    left                 = soft_clip(left);
-    right                = soft_clip(right);
+    // high-pass filter — PanDocs capacitor model for DC offset removal
+    float out_l          = left - apu->hp_capacitor_left;
+    apu->hp_capacitor_left = left - out_l * apu->hp_charge_factor;
 
-    // high-pass filter to remove DC offset
-    float out_l = apu->hp_alpha * (apu->hp_last_output_left + left - apu->hp_last_input_left);
-    float out_r = apu->hp_alpha * (apu->hp_last_output_right + right - apu->hp_last_input_right);
+    float out_r           = right - apu->hp_capacitor_right;
+    apu->hp_capacitor_right = right - out_r * apu->hp_charge_factor;
 
-    apu->hp_last_input_left                   = left;
-    apu->hp_last_input_right                  = right;
-    apu->hp_last_output_left                  = out_l;
-    apu->hp_last_output_right                 = out_r;
+    // hard clamp as safety net (should never trigger with correct mixing)
+    if (out_l >  1.0f) out_l =  1.0f;
+    if (out_l < -1.0f) out_l = -1.0f;
+    if (out_r >  1.0f) out_r =  1.0f;
+    if (out_r < -1.0f) out_r = -1.0f;
 
-    // store in buffer
-    apu->audio_buffer[apu->buffer_position++] = out_l;
-    apu->audio_buffer[apu->buffer_position++] = out_r;
+    // SPSC ring buffer write — lock-free with release/acquire semantics
+    int wp   = atomic_load_explicit(&apu->write_pos, memory_order_relaxed);
+    int rp   = atomic_load_explicit(&apu->read_pos, memory_order_acquire);
+    int used = (wp - rp + apu->buffer_capacity) % apu->buffer_capacity;
 
-    // wrap buffer position if necessary
-    if (apu->buffer_position >= apu->buffer_size * 2) {
-        apu->buffer_position = 0;
+    if (used >= apu->buffer_capacity - 2) {
+        return;  // buffer full — drop sample (better than blocking emulation)
     }
+
+    apu->audio_buffer[wp] = out_l;
+    apu->audio_buffer[(wp + 1) % apu->buffer_capacity] = out_r;
+    atomic_store_explicit(&apu->write_pos, (wp + 2) % apu->buffer_capacity, memory_order_release);
 }
 
+/* ============================================================
+ * Power control
+ * ============================================================ */
+
 static void power_off(APU *apu) {
-    if (apu->sound_enabled) {
-        apu->sound_disabling = true;
-        return;  // don't reset channels yet
-    }
+    /* writing 0 to NR52 bit 7 immediately resets all APU registers
+       (except wave RAM on DMG). The high-pass filter naturally
+       smooths the transition. */
+    uint8_t saved_wave_ram[16];
+    memcpy(saved_wave_ram, apu->ch3.wave_ram, 16);
 
-    // disable all channels
-    apu->ch1                 = (ch1_t){0};  // reset channel 1
-    apu->ch2                 = (ch2_t){0};  // reset channel 2
-    apu->ch3                 = (ch3_t){0};  // reset channel 3
-    apu->ch4                 = (ch4_t){0};  // reset channel 4
+    apu->ch1                 = (ch1_t){0};
+    apu->ch2                 = (ch2_t){0};
+    apu->ch3                 = (ch3_t){0};
+    apu->ch4                 = (ch4_t){0};
 
-    // reset master control
+    memcpy(apu->ch3.wave_ram, saved_wave_ram, 16);
+
     apu->sound_enabled       = false;
     apu->master_volume_left  = 0;
     apu->master_volume_right = 0;
     apu->channel_panning     = 0;
 }
 
-static void init_highpass_filter(APU *apu, float cutoff_hz) {
-    float sample_rate = 48000.0f;
-    float rc          = 1.0f / (2.0f * M_PI * cutoff_hz);
-    float dt          = 1.0f / sample_rate;
-    apu->hp_alpha     = rc / (rc + dt);
-}
+/* ============================================================
+ * APU API functions
+ * ============================================================ */
 
-/* APU API functions */
 void apu_init(APU *apu, struct CPU *cpu, struct MMU *mmu) {
-    apu->cpu          = cpu;
-    apu->mmu          = mmu;
+    apu->cpu = cpu;
+    apu->mmu = mmu;
 
-    apu->buffer_size  = 2048;
-    apu->audio_buffer = malloc(apu->buffer_size * sizeof(float) * 2);  // * 2 for stereo
+    apu->buffer_capacity = APU_BUFFER_CAPACITY;
+    apu->audio_buffer    = malloc(apu->buffer_capacity * sizeof(float));
     if (!apu->audio_buffer) {
         fprintf(stderr, "Failed to allocate audio buffer\n");
         exit(EXIT_FAILURE);
     }
+    memset(apu->audio_buffer, 0, apu->buffer_capacity * sizeof(float));
 
-    apu->fade_rate        = 0.001f;   // much faster channel fades
-    apu->master_fade_rate = 0.0005f;  // faster master fade
+    /* low-pass filter coefficient: first-order IIR
+       alpha = 1 - exp(-2π * cutoff / sample_rate)
+       At 16 kHz / 48 kHz → alpha ≈ 0.877 (gentle rolloff above 16 kHz) */
+    apu->lp_alpha = 1.0f - expf(-2.0f * (float)M_PI * LP_CUTOFF_HZ / (float)SAMPLE_RATE);
 
-    // initialize high-pass filter with moderate cutoff
-    init_highpass_filter(apu, 15.0f);
+    /* high-pass filter: PanDocs capacitor charge factor
+       0.999958 ^ (4194304 / 48000) ≈ 0.99634 */
+    apu->hp_charge_factor = powf(HP_CHARGE_BASE, (float)(CPU_CLOCK_HZ / SAMPLE_RATE));
 
     apu_reset(apu);
 }
@@ -557,41 +497,22 @@ void apu_reset(APU *apu) {
     apu->master_volume_right     = 0;
     apu->channel_panning         = 0;
 
-    // reset audio buffer
-    apu->buffer_position         = 0;
-    apu->buffer_read_position    = 0;
+    // reset ring buffer positions
+    atomic_store(&apu->write_pos, 0);
+    atomic_store(&apu->read_pos, 0);
 
-    // reset high-pass filter state
-    apu->hp_last_input_left      = 0.0f;
-    apu->hp_last_input_right     = 0.0f;
-    apu->hp_last_output_left     = 0.0f;
-    apu->hp_last_output_right    = 0.0f;
-
-    // reset low-pass filter state
+    // reset filter state
+    apu->hp_capacitor_left       = 0.0f;
+    apu->hp_capacitor_right      = 0.0f;
     apu->lp_left                 = 0.0f;
     apu->lp_right                = 0.0f;
 
-    // reset fade states
-    apu->ch1_fade                = 0.0f;
-    apu->ch2_fade                = 0.0f;
-    apu->ch3_fade                = 0.0f;
-    apu->ch4_fade                = 0.0f;
-    apu->master_fade             = 0.0f;
-    apu->sound_enabling          = false;
-    apu->sound_disabling         = false;
-
-    // for buffer underrun handling
+    // reset underrun handling
     apu->last_output_left        = 0.0f;
     apu->last_output_right       = 0.0f;
 
-    // reset channel interpolation state
-    apu->ch1_last_output         = 0.0f;
-    apu->ch2_last_output         = 0.0f;
-    apu->ch3_last_output         = 0.0f;
-    apu->ch4_last_output         = 0.0f;
-
     apu->cycles                  = 0;
-    apu->cycles_per_sample       = 4194304.0 / 48000.0;
+    apu->cycles_per_sample       = CPU_CLOCK_HZ / SAMPLE_RATE;
     apu->sample_counter          = 0.0;
 
     for (int i = 0; i < 16; i++) {
@@ -600,7 +521,7 @@ void apu_reset(APU *apu) {
 }
 
 void apu_step(APU *apu, int cycles) {
-    if (!apu->sound_enabled && !apu->sound_disabling) {
+    if (!apu->sound_enabled) {
         return;
     }
 
@@ -614,7 +535,7 @@ void apu_step(APU *apu, int cycles) {
 
     update_channel_timers(apu, cycles);
 
-    // generate audio samples
+    // generate audio samples at output rate (48 kHz)
     apu->sample_counter += (double)cycles;
     while (apu->sample_counter >= apu->cycles_per_sample) {
         apu->sample_counter -= apu->cycles_per_sample;
@@ -622,29 +543,31 @@ void apu_step(APU *apu, int cycles) {
     }
 }
 
+/* SPSC ring buffer read — called from raylib audio callback thread */
 void apu_get_samples(APU *apu, float *buffer, int num_samples) {
-    for (int i = 0; i < num_samples * 2; i += 2) {
-        int read_pos  = apu->buffer_read_position;
-        int write_pos = apu->buffer_position;
+    int rp = atomic_load_explicit(&apu->read_pos, memory_order_relaxed);
+    int wp = atomic_load_explicit(&apu->write_pos, memory_order_acquire);
 
-        int available = (write_pos - read_pos + apu->buffer_size * 2) % (apu->buffer_size * 2);
+    for (int i = 0; i < num_samples * 2; i += 2) {
+        int available = (wp - rp + apu->buffer_capacity) % apu->buffer_capacity;
 
         if (available >= 2) {
-            // copy samples from audio buffer
-            buffer[i]                 = apu->audio_buffer[read_pos];
-            buffer[i + 1]             = apu->audio_buffer[(read_pos + 1) % (apu->buffer_size * 2)];
+            buffer[i]     = apu->audio_buffer[rp];
+            buffer[i + 1] = apu->audio_buffer[(rp + 1) % apu->buffer_capacity];
+            rp = (rp + 2) % apu->buffer_capacity;
 
-            apu->last_output_left     = buffer[i];
-            apu->last_output_right    = buffer[i + 1];
-            apu->buffer_read_position = (read_pos + 2) % (apu->buffer_size * 2);
+            apu->last_output_left  = buffer[i];
+            apu->last_output_right = buffer[i + 1];
         } else {
-            // if buffer is empty, fade to silence
+            // buffer underrun: fade to silence to avoid clicks
             buffer[i]              = apu->last_output_left * 0.95f;
             buffer[i + 1]          = apu->last_output_right * 0.95f;
             apu->last_output_left  = buffer[i];
             apu->last_output_right = buffer[i + 1];
         }
     }
+
+    atomic_store_explicit(&apu->read_pos, rp, memory_order_release);
 }
 
 void apu_cleanup(APU *apu) {
@@ -654,7 +577,10 @@ void apu_cleanup(APU *apu) {
     }
 }
 
-/* MMU handlers */
+/* ============================================================
+ * MMU handlers — register read/write
+ * ============================================================ */
+
 void apu_write(APU *apu, uint16_t addr, uint8_t value) {
     if (!apu->sound_enabled && addr != NR52)
         return;
@@ -761,9 +687,8 @@ void apu_write(APU *apu, uint16_t addr, uint8_t value) {
             if (!(value & 0x80)) {
                 power_off(apu);
             } else if (!apu->sound_enabled && (value & 0x80)) {
-                apu->sound_enabled        = true;  // enable sound
-                apu->sound_enabling       = true;  // start fade-in
-                apu->frame_sequencer_step = 0;     // reset frame sequencer step
+                apu->sound_enabled        = true;
+                apu->frame_sequencer_step = 0;  // reset frame sequencer step
             }
             break;
         default:  // wave ram

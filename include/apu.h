@@ -1,6 +1,7 @@
 #ifndef APU_HEADER
 #define APU_HEADER
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -139,9 +140,9 @@ typedef struct {
 
     uint8_t clock_shift;    // clock shift (0-7)
     uint8_t clock_divider;  // clock divider (0-15)
-    bool width_mode;  // width mode (true -> 15-bit lsfr, false -> 7-bit lsfr)
-    uint16_t lfsr;    // linear feedback shift register
-    int frequency_timer;  // frequency timer (in CPU cycles)
+    bool width_mode;        // NR43 bit 3: true (1) = 7-bit LFSR, false (0) = 15-bit LFSR
+    uint16_t lfsr;          // linear feedback shift register
+    int frequency_timer;    // frequency timer (in CPU cycles)
 
     bool enabled;          // channel enabled (true/false)
     bool dac_enabled;      // DAC enabled (true/false)
@@ -167,47 +168,35 @@ typedef struct APU {
     uint8_t master_volume_right;
     uint8_t channel_panning;  // (NR51)
 
-    // audio output buffer
+    /* SPSC lock-free ring buffer for audio output.
+       Producer (emulation thread) writes samples via generate_sample().
+       Consumer (raylib audio callback) reads via apu_get_samples(). */
     float *audio_buffer;
-    int buffer_position;  // current position in the audio buffer
-    int buffer_read_position;
-    int buffer_size;  // size of the audio buffer
+    _Atomic int write_pos;   // producer index (emulation thread only writes)
+    _Atomic int read_pos;    // consumer index (audio callback only writes)
+    int buffer_capacity;     // total number of floats in the ring buffer
+
     double sample_counter;
+    double cycles_per_sample;  // number of CPU cycles per audio sample
 
-    float hp_alpha;              // filter coefficient
-    float hp_last_input_left;    // previous input sample (left)
-    float hp_last_input_right;   // previous input sample (right)
-    float hp_last_output_left;   // previous output sample (left)
-    float hp_last_output_right;  // previous output sample (right)
+    /* high-pass filter — PanDocs capacitor model for DC offset removal.
+       Charge factor = 0.999958 ^ (4194304 / sample_rate).
+       See: https://gbdev.io/pandocs/Audio_details.html */
+    float hp_capacitor_left;
+    float hp_capacitor_right;
+    float hp_charge_factor;
 
-    float lp_left;   // low-pass filter state (left)
-    float lp_right;  // low-pass filter state (right)
+    /* low-pass filter — first-order IIR to emulate DMG analog output.
+       alpha = 1 - exp(-2π * cutoff_hz / sample_rate). */
+    float lp_left;
+    float lp_right;
+    float lp_alpha;
 
-    // channel fade states
-    float ch1_fade;   // 0.0 to 1.0
-    float ch2_fade;   // 0.0 to 1.0
-    float ch3_fade;   // 0.0 to 1.0
-    float ch4_fade;   // 0.0 to 1.0
-    float fade_rate;  // how fast channels fade in/out
-
-    // master volume fade
-    float master_fade;       // 0.0 to 1.0
-    float master_fade_rate;  // how fast master fades
-    bool sound_enabling;     // currently fading in
-    bool sound_disabling;    // currently fading out
-
-    // Buffer underrun handling
-    float last_output_left;   // for smooth underrun recovery
-    float last_output_right;  // for smooth underrun recovery
-
-    // Channel state interpolation to reduce popping
-    float ch1_last_output;    // previous sample for smoothing
-    float ch2_last_output;    // previous sample for smoothing
-    float ch3_last_output;    // previous sample for smoothing
-    float ch4_last_output;    // previous sample for smoothing
+    // buffer underrun handling
+    float last_output_left;
+    float last_output_right;
 
     uint64_t cycles;
-    double cycles_per_sample;  // number of CPU cycles per audio sample
 
 } APU;
 
@@ -221,5 +210,7 @@ uint8_t apu_read(APU *apu, uint16_t addr);
 
 /* audio output */
 void apu_get_samples(APU *apu, float *buffer, int num_samples);
+
+void apu_cleanup(APU *apu);
 
 #endif
